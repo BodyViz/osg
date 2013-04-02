@@ -1571,8 +1571,11 @@ class OSG_EXPORT State : public Referenced, public Observer
                 {
                     ms.last_applied_value = enabled;
 
+#ifndef OSG_GLES2_AVAILABLE
+					// With opengl es 2, GL_TEXTURE_2D is always enabled
                     if (enabled) glEnable(mode);
                     else glDisable(mode);
+#endif
 
                     if (_checkGLErrors==ONCE_PER_ATTRIBUTE) checkGLErrors(mode);
 
