@@ -1,8 +1,8 @@
-// El siguiente bloque ifdef muestra la forma estándar de crear macros que facilitan
-// la exportación de archivos DLL. Todos los archivos de este archivo DLL se compilan con el símbolo Q3BSP_EXPORTS
-// definido en la línea de comandos. Este símbolo no se debe definir en ningún proyecto
-// que utilice este archivo DLL. De este modo, otros proyectos cuyos archivos de código fuente incluyan el archivo
-// interpreta que las funciones Q3BSP_API se importan de un archivo DLL, mientras que este archivo DLL interpreta los símbolos
+// El siguiente bloque ifdef muestra la forma estÃ¡ndar de crear macros que facilitan
+// la exportaciÃ³n de archivos DLL. Todos los archivos de este archivo DLL se compilan con el sÃ­mbolo Q3BSP_EXPORTS
+// definido en la lÃ­nea de comandos. Este sÃ­mbolo no se debe definir en ningÃºn proyecto
+// que utilice este archivo DLL. De este modo, otros proyectos cuyos archivos de cÃ³digo fuente incluyan el archivo
+// interpreta que las funciones Q3BSP_API se importan de un archivo DLL, mientras que este archivo DLL interpreta los sÃ­mbolos
 // definidos en esta macro como si fueran exportados.
 /*
 #ifdef Q3BSP_EXPORTS
@@ -15,7 +15,7 @@
 class Q3BSP_API Cq3bsp {
 public:
     Cq3bsp(void);
-    // TODO: agregar métodos aquí.
+    // TODO: agregar mÃ©todos aquÃ­.
 };
 
 extern Q3BSP_API int nq3bsp;

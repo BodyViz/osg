@@ -21,3 +21,13 @@ IF(COREMEDIA_LIBRARY AND COREMEDIA_INCLUDE_DIR)
   SET(COREMEDIA_FOUND "YES")
 ENDIF()
 
+# Link the framework by flag rather than by FIND_LIBRARY result. The probe above
+# stays as the existence test, but its value is an absolute path inside the
+# active SDK, and install(EXPORT) copies raw paths into the exported link
+# interface verbatim -- which would pin the installed package to one Xcode on one
+# machine. See the same treatment of COCOA_LIBRARY in the root CMakeLists.
+IF(COREMEDIA_FOUND)
+    SET(COREMEDIA_LIBRARY "-framework CoreMedia")
+ENDIF()
+
+

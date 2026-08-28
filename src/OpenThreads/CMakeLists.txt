@@ -48,7 +48,6 @@ ENDIF()
 ## Quieten warnings that a due to optional code paths
 
 IF(CMAKE_COMPILER_IS_GNUCXX)
-    # Remove -Wextra flag as it barfs on ffmoeg headers
    STRING(REGEX REPLACE "-Wextra" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 ENDIF()
 
@@ -85,19 +84,19 @@ ENDIF()
 
 # Maybe we should be using the FindThreads.cmake module?
 IF(ANDROID)
-    SUBDIRS(pthreads)
+    ADD_SUBDIRECTORY(pthreads)
 ELSEIF(WIN32)
     # So I think Cygwin wants to use pthreads
     IF(CYGWIN)
-        SUBDIRS(pthreads)
+        ADD_SUBDIRECTORY(pthreads)
     ELSE()
         # Everybody else including Msys should probably go here
-        SUBDIRS(win32)
+        ADD_SUBDIRECTORY(win32)
         # examples)
     ENDIF()
 ELSE()
     IF(UNIX)
-        SUBDIRS(pthreads)
+        ADD_SUBDIRECTORY(pthreads)
     ELSE()
         MESSAGE("Sorry, OpenThreads may not support your platform")
     ENDIF()

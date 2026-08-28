@@ -124,7 +124,7 @@ OSG currently support OpenGL 3.x on Windows. This comment block describes the
 necessary configuration steps.
 
 Get the draft gl3.h header file from OpenGL.org and put it in a folder called
-“GL3” somewhere on your hard drive. OSG includes this header as <GL3/gl3.h>. Get
+Â“GL3Â” somewhere on your hard drive. OSG includes this header as <GL3/gl3.h>. Get
 gl3.h from here:
 http://www.opengl.org/registry/
 
@@ -134,7 +134,7 @@ several changes.
  * Add the path to <GL3/gl3.h> to the CMake compiler flags, CMAKE_CXX_FLAGS and
    CMAKE_CXX_FLAGS_DEBUG (for release and debug builds; others if you use other
    build configurations). The text to add should look something like this:
-     /I “C:\GLHeader”
+     /I Â“C:\GLHeaderÂ”
    The folder GLHeader should contain a subfolder GL3, which in turn contains
    gl3.h.
 

@@ -1,0 +1,144 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 30,
+    "patch": 0
+  },
+  "_comment": [
+    "Copy to CMakeUserPresets.json and edit the paths.",
+    "",
+    "CMakePresets.json contains only hidden bases, because a build needs third-party",
+    "dependency prefixes and those are machine-specific. The invocable presets live",
+    "here. Bases available to inherit: mac-ninja-base, mac-xcode-base, windows",
+    "(VS2022 x64 /MD), plus macos-build / windows-build and macos-test / windows-test.",
+    "",
+    "Build the dependencies with lib-src/osg-3rdparty-cmake, which installs each into",
+    "<prefix>/<name>-<version>, then list those directories in CMAKE_PREFIX_PATH.",
+    "A dependency that is not found is not an error -- the plugin is silently skipped,",
+    "so check the configure output and the cache for *-NOTFOUND rather than assuming.",
+    "",
+    "Windows must be /MD: official Qt6 binaries are /MD and mixing CRTs across the Qt",
+    "boundary gives LNK2038 or silent heap corruption."
+  ],
+  "configurePresets": [
+    {
+      "name": "local-macos",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_OSX_ARCHITECTURES": "x86_64",
+        "CMAKE_PREFIX_PATH": "/path/to/osg-3rdparty/freetype-<ver>;/path/to/osg-3rdparty/libpng-<ver>;/path/to/osg-3rdparty/libjpeg-turbo-<ver>;/path/to/osg-3rdparty/tiff-<ver>;/path/to/osg-3rdparty/giflib-<ver>;/path/to/osg-3rdparty/jasper-<ver>;/path/to/dcmtk-<ver>"
+      }
+    },
+    {
+      "name": "local-windows",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "C:/path/to/osg-3rdparty/freetype-<ver>;C:/path/to/osg-3rdparty/libpng-<ver>;C:/path/to/osg-3rdparty/libjpeg-turbo-<ver>;C:/path/to/osg-3rdparty/tiff-<ver>;C:/path/to/osg-3rdparty/giflib-<ver>;C:/path/to/osg-3rdparty/jasper-<ver>;C:/path/to/osg-3rdparty/zlib-<ver>;C:/path/to/osg-3rdparty/curl-<ver>;C:/path/to/dcmtk-<ver>"
+      }
+    },
+    {
+      "name": "my-mac-ninja",
+      "displayName": "macOS (Ninja Multi-Config)",
+      "inherits": [
+        "local-macos",
+        "mac-ninja-base"
+      ],
+      "installDir": "/path/to/install/osg-3.7.1"
+    },
+    {
+      "name": "my-mac-xcode",
+      "displayName": "macOS (Xcode)",
+      "inherits": [
+        "local-macos",
+        "mac-xcode-base"
+      ],
+      "installDir": "/path/to/install/osg-3.7.1"
+    },
+    {
+      "name": "my-windows",
+      "displayName": "Windows x64 VS2022 /MD",
+      "inherits": [
+        "local-windows",
+        "windows"
+      ],
+      "installDir": "C:/path/to/install/osg-3.7.1"
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "my-mac-ninja-debug",
+      "inherits": "macos-build",
+      "configurePreset": "my-mac-ninja",
+      "configuration": "Debug"
+    },
+    {
+      "name": "my-mac-ninja-release",
+      "inherits": "macos-build",
+      "configurePreset": "my-mac-ninja",
+      "configuration": "Release"
+    },
+    {
+      "name": "my-mac-xcode-debug",
+      "inherits": "macos-build",
+      "configurePreset": "my-mac-xcode",
+      "configuration": "Debug"
+    },
+    {
+      "name": "my-mac-xcode-release",
+      "inherits": "macos-build",
+      "configurePreset": "my-mac-xcode",
+      "configuration": "Release"
+    },
+    {
+      "name": "my-windows-debug",
+      "inherits": "windows-build",
+      "configurePreset": "my-windows",
+      "configuration": "Debug"
+    },
+    {
+      "name": "my-windows-release",
+      "inherits": "windows-build",
+      "configurePreset": "my-windows",
+      "configuration": "Release"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "my-mac-ninja-debug",
+      "inherits": "macos-test",
+      "configurePreset": "my-mac-ninja",
+      "configuration": "Debug"
+    },
+    {
+      "name": "my-mac-ninja-release",
+      "inherits": "macos-test",
+      "configurePreset": "my-mac-ninja",
+      "configuration": "Release"
+    },
+    {
+      "name": "my-mac-xcode-debug",
+      "inherits": "macos-test",
+      "configurePreset": "my-mac-xcode",
+      "configuration": "Debug"
+    },
+    {
+      "name": "my-mac-xcode-release",
+      "inherits": "macos-test",
+      "configurePreset": "my-mac-xcode",
+      "configuration": "Release"
+    },
+    {
+      "name": "my-windows-debug",
+      "inherits": "windows-test",
+      "configurePreset": "my-windows",
+      "configuration": "Debug"
+    },
+    {
+      "name": "my-windows-release",
+      "inherits": "windows-test",
+      "configurePreset": "my-windows",
+      "configuration": "Release"
+    }
+  ]
+}

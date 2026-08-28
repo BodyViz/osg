@@ -33,6 +33,12 @@ Makefile
 cmake_install.cmake
 install_manifest*.txt
 
+# Per-developer presets: dependency prefixes and deployment install locations
+CMakeUserPresets.json
+
+# neocmakelsp language server index: machine specific, regenerated on demand
+.cache/
+
 
 # Compiled Object files
 *.slo

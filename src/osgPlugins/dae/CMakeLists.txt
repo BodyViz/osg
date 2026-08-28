@@ -5,7 +5,6 @@ INCLUDE_DIRECTORIES( ${COLLADA_INCLUDE_DIR} ${COLLADA_INCLUDE_DIR}/1.4)
 ## Quieten warnings that a due to dae headers
 
 IF(CMAKE_COMPILER_IS_GNUCXX)
-    # Remove -Wextra flag as it barfs on ffmoeg headers
    STRING(REGEX REPLACE "-Wextra" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 ENDIF()
 
@@ -91,7 +90,6 @@ ENDIF()
 SET(TARGET_ADDED_LIBRARIES osgSim osgAnimation)
 
 IF(CMAKE_COMPILER_IS_GNUCXX)
-    # Remove -Wshadow flag as it barfs on ffmoeg headers
    STRING(REGEX REPLACE "-Wshadow" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 ENDIF()
 

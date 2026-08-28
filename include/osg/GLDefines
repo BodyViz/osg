@@ -714,8 +714,10 @@ typedef char GLchar;
     #define GL_MESH_OUTPUT_PER_VERTEX_GRANULARITY_NV                0x92DF
     #define GL_MESH_OUTPUT_PER_PRIMITIVE_GRANULARITY_NV             0x9543
 
-    #define GL_MESH_WORK_GROUP_SIZE_NV                              0x953B
-    #define GL_TASK_WORK_GROUP_SIZE_NV                              0x953C
+    // 0x953B/0x953C are GL_MAX_* in NV_mesh_shader; they were transcribed here
+    // under the unprefixed names, colliding with the real ones below.
+    #define GL_MAX_MESH_WORK_GROUP_SIZE_NV                          0x953B
+    #define GL_MAX_TASK_WORK_GROUP_SIZE_NV                          0x953C
 
     #define GL_MESH_WORK_GROUP_SIZE_NV                              0x953E
     #define GL_TASK_WORK_GROUP_SIZE_NV                              0x953F

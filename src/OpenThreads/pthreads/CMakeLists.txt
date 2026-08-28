@@ -135,6 +135,7 @@ ELSE()
     TARGET_INCLUDE_DIRECTORIES(${LIB_NAME}
         PUBLIC
             $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+            $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
             $<INSTALL_INTERFACE:${INSTALL_INCDIR}>
     )
 
@@ -161,50 +162,14 @@ ELSE()
         ${CMAKE_CURRENT_BINARY_DIR}
     )
 
-    IF(OSG_EXPORT_TARGETS)
-
-        INSTALL(
-            TARGETS ${LIB_NAME}
-            EXPORT  ${LIB_NAME}
-            ARCHIVE DESTINATION lib${LIB_POSTFIX} COMPONENT libopenthreads-dev
-            LIBRARY DESTINATION lib${LIB_POSTFIX} COMPONENT libopenthreads
-            RUNTIME DESTINATION bin COMPONENT libopenthreads
-        )
-
-        INSTALL(
-            EXPORT ${LIB_NAME}
-            NAMESPACE ${PKG_NAMESPACE}::
-            DESTINATION ${INSTALL_CONFIGDIR}
-            FILE ${LIB_NAME}-targets.cmake
-            COMPONENT libopenthreads-dev
-        )
-
-        # Intentionally blank
-        SET(COMPONENT_CMAKE_DEPENDENCIES)
-
-        SET(TARGET_IMPORT_INPUT_FILE  "${PROJECT_SOURCE_DIR}/packaging/cmake/openscenegraph-component-import-targets.cmake")
-        SET(TARGET_IMPORT_OUTPUT_FILE "${PROJECT_BINARY_DIR}/packaging/cmake/openscenegraph-${LIB_NAME}-import-targets.cmake")
-        CONFIGURE_FILE(
-            ${TARGET_IMPORT_INPUT_FILE}
-            ${TARGET_IMPORT_OUTPUT_FILE}
-            @ONLY
-        )
-        INSTALL(
-            FILES ${TARGET_IMPORT_OUTPUT_FILE}
-            DESTINATION ${INSTALL_CONFIGDIR}
-            COMPONENT libopenscenegraph-dev
-        )
-
-    ELSE()
-
-        INSTALL(
-            TARGETS ${LIB_NAME}
-            ARCHIVE DESTINATION lib${LIB_POSTFIX} COMPONENT libopenthreads-dev
-            LIBRARY DESTINATION lib${LIB_POSTFIX} COMPONENT libopenthreads
-            RUNTIME DESTINATION bin COMPONENT libopenthreads
-        )
-
-    ENDIF()
+    # Same single export set as the OSG libraries -- see CMakeModules/ModuleInstall.cmake.
+    INSTALL(
+        TARGETS ${LIB_NAME}
+        EXPORT  OpenSceneGraphTargets
+        ARCHIVE DESTINATION ${INSTALL_ARCHIVEDIR} COMPONENT libopenthreads-dev
+        LIBRARY DESTINATION ${INSTALL_LIBDIR} COMPONENT libopenthreads
+        RUNTIME DESTINATION ${INSTALL_BINDIR} COMPONENT libopenthreads
+    )
 
     IF(NOT OSG_COMPILE_FRAMEWORKS)
 

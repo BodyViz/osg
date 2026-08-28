@@ -11,7 +11,7 @@
 
 
 #include <osg/Timer>
-#include "../QTKit/VideoFrameDispatcher.h"
+#include "VideoFrameDispatcher.h"
 
 
 class OSXAVFoundationVideo : public osgVideo::VideoImageStream {

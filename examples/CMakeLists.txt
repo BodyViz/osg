@@ -18,7 +18,19 @@ IF(ANDROID)
     # ADD_SUBDIRECTORY(osgandroidsimple)
 ELSE(ANDROID)
 
-IF(DYNAMIC_OPENSCENEGRAPH)
+# Every example below builds in both link modes.
+#
+# They link the core libraries only, with no plugin force-loading, so they compile
+# and link but cannot read model or image files in a static build. That is
+# deliberate: the C++20 signal comes from compiling and the static-linkage signal
+# from linking, and plugins contribute to neither. Force-loading the 88 plugin
+# archives into each of these would cost roughly 14 GB against 1.8 GB.
+#
+# The indentation below is left as it was to keep this diff readable.
+IF(NOT DYNAMIC_OPENSCENEGRAPH)
+    #needed on win32 or the linker get confused by _declspec declarations
+    ADD_DEFINITIONS(-DOSG_LIBRARY_STATIC)
+ENDIF()
 
     ADD_SUBDIRECTORY(osgsimpleMDI)
     ADD_SUBDIRECTORY(osg2cpp)
@@ -173,7 +185,9 @@ IF(DYNAMIC_OPENSCENEGRAPH)
     ADD_SUBDIRECTORY(osgsimplegl3)
     ADD_SUBDIRECTORY(osgbindlesstext)
     IF(OSG_CPP_EXCEPTIONS_AVAILABLE)
-        ADD_SUBDIRECTORY(osgunittests)
+        # osgunittests is built by tests/CMakeLists.txt under BUILD_TESTING, in
+        # both link modes, so it is deliberately not registered here -- building
+        # it in both places would collide on the same output name.
         ADD_SUBDIRECTORY(osgmemorytest)
     ENDIF()
 
@@ -241,16 +255,12 @@ IF(DYNAMIC_OPENSCENEGRAPH)
 
     #to add subject to find socket#ADD_SUBDIRECTORY(osgcluster)
 
-ELSE(DYNAMIC_OPENSCENEGRAPH)
-    #needed on win32 or the linker get confused by _declspec declarations
-    ADD_DEFINITIONS(-DOSG_LIBRARY_STATIC)
-
+IF(NOT DYNAMIC_OPENSCENEGRAPH)
     IF(OSG_BUILD_PLATFORM_IPHONE)
         ADD_SUBDIRECTORY(osgviewerIPhone)
     ELSE()
         ADD_SUBDIRECTORY(osgstaticviewer)
     ENDIF()
-
-ENDIF(DYNAMIC_OPENSCENEGRAPH)
+ENDIF()
 
 ENDIF(ANDROID)

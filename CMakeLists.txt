@@ -1,6 +1,8 @@
 #
 # OpenSceneGraph CMake build file
 #
+CMAKE_MINIMUM_REQUIRED(VERSION 3.30)
+
 SET(OPENSCENEGRAPH_MAJOR_VERSION 3)
 SET(OPENSCENEGRAPH_MINOR_VERSION 7)
 SET(OPENSCENEGRAPH_PATCH_VERSION 1)
@@ -10,50 +12,29 @@ SET(OPENSCENEGRAPH_SOVERSION 203)
 # set to 0 when not a release candidate, non zero means that any generated
 # git tags will be treated as release candidates of given number
 SET(OPENSCENEGRAPH_RELEASE_CANDIDATE 0)
-set(CMAKE_ALLOW_LOOSE_LOOP_CONSTRUCTS TRUE)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8.0 FATAL_ERROR)
+PROJECT(OpenSceneGraph
+    VERSION ${OPENSCENEGRAPH_MAJOR_VERSION}.${OPENSCENEGRAPH_MINOR_VERSION}.${OPENSCENEGRAPH_PATCH_VERSION}
+    LANGUAGES C CXX
+)
 
-if(COMMAND cmake_policy)
-    # Works around warnings libraries linked against that don't
-    # have absolute paths (e.g. -lpthreads)
-    cmake_policy(SET CMP0003 NEW)
-
-    # Works around warnings about escaped quotes in ADD_DEFINITIONS
-    # statements.
-    cmake_policy(SET CMP0005 NEW)
-
-    # tell CMake to prefer CMake's own CMake modules when available
-    # only available from cmake-2.8.4
-    if("${CMAKE_VERSION}" VERSION_GREATER 2.8.3)
-        cmake_policy(SET CMP0017 NEW)
-    endif()
-
-    # INTERPROCEDURAL_OPTIMIZATION is enforced when enabled.
-    # Allows passing -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON
-    cmake_policy(SET CMP0069 NEW)
-endif()
-
-IF(APPLE)
-    # Get OSX version in MAJOR.MINOR format
-    EXECUTE_PROCESS(COMMAND sw_vers -productVersion
-        OUTPUT_VARIABLE OSG_OSX_VERSION
-        OUTPUT_STRIP_TRAILING_WHITESPACE)
-    STRING(REGEX REPLACE "^([0-9]+\\.[0-9]+).*$" "\\1"
-        OSG_OSX_VERSION "${OSG_OSX_VERSION}")
-    MESSAGE(STATUS "OSG_OSX_VERSION=${OSG_OSX_VERSION}")
+# Language standard. C++20 is the baseline for this build; a preset or -D on the
+# command line can raise it. These seed the CXX_STANDARD family of target
+# properties when a target is created, so they must precede ADD_SUBDIRECTORY.
+IF(NOT DEFINED CMAKE_CXX_STANDARD)
+    SET(CMAKE_CXX_STANDARD 20)
 ENDIF()
+IF(NOT DEFINED CMAKE_CXX_STANDARD_REQUIRED)
+    SET(CMAKE_CXX_STANDARD_REQUIRED ON)
+ENDIF()
+IF(NOT DEFINED CMAKE_CXX_EXTENSIONS)
+    SET(CMAKE_CXX_EXTENSIONS OFF)
+ENDIF()
+MESSAGE(STATUS "C++ standard: ${CMAKE_CXX_STANDARD}")
 
-PROJECT(OpenSceneGraph)
-
-# Set OSX architecture flags here, since they must be specified before
-# creating the actual OSG project.
-# Note that the CMAKE_OSX_* variables are not well documented in
-# CMake 2.8, but they do officially exist.
-# See https://cmake.org/Bug/view.php?id=14695#c34953
-# Additionally, OSG_WINDOWING_SYSTEM is set here for OSX since its
-# value is needed to find the correct version of OpenGL (X11 or Cocoa).
+# OSG_WINDOWING_SYSTEM is set here since its value is needed to find the
+# correct version of OpenGL (X11 or Cocoa).
 
 IF(ANDROID)
     SET(OSG_WINDOWING_SYSTEM "None" CACHE STRING "Windowing system type for graphics window creation; options: None.")
@@ -86,48 +67,27 @@ ELSEIF(APPLE)
         SET(CMAKE_OSX_ARCHITECTURES "$(ARCHS_STANDARD)" CACHE STRING "Build architectures for iOS")
 
     ELSE()
-        # OSX >= 10.5 uses Cocoa windowing system, otherwise Carbon
-        IF(OSG_OSX_VERSION VERSION_LESS 10.5)
-            SET(OSG_WINDOWING_SYSTEM "Carbon" CACHE STRING "Windowing system type for graphics window creation; options: Carbon, Cocoa, X11 or None.")
-            SET(OSG_WINDOWING_SYSTEM_CARBON ON INTERNAL "use Carbon (apple; 32 bit only)")
-        ELSE()
-            SET(OSG_WINDOWING_SYSTEM "Cocoa" CACHE STRING "Windowing system type for graphics window creation; options: Carbon, Cocoa, X11 or None.")
-        ENDIF()
-
-        # Set macOS architectures for Universal Binaries.
-        IF(OSG_OSX_VERSION VERSION_GREATER_EQUAL 10.14)
-            # x86_64 only
-            SET(CMAKE_OSX_ARCHITECTURES "x86_64" CACHE STRING "Build architectures for OSX")
-            SET(CMAKE_OSX_DEPLOYMENT_TARGET "10.9" CACHE STRING "Target OSX version")
-            # libstdc++ is no longer supported
-            SET(CMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LANGUAGE_STANDARD "c++11")
-            SET(CMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LIBRARY "libc++")
-        ELSEIF(OSG_OSX_VERSION VERSION_GREATER_EQUAL 10.8)
-            # i386 is no longer supported
-            SET(CMAKE_OSX_ARCHITECTURES "x86_64" CACHE STRING "Build architectures for OSX")
-            SET(CMAKE_OSX_DEPLOYMENT_TARGET "10.8" CACHE STRING "Target OSX version")
-        ELSEIF(OSG_OSX_VERSION VERSION_EQUAL 10.7)
-            # ppc is no longer supported
-            SET(CMAKE_OSX_ARCHITECTURES "i386;x86_64" CACHE STRING "Build architectures for OSX")
-        ELSEIF(OSG_OSX_VERSION VERSION_GREATER 10.4)
-            # 64-bit compiles are not supported with Carbon.
-            SET(CMAKE_OSX_ARCHITECTURES "ppc;i386" CACHE STRING "Build architectures for OSX")
-            SET(CMAKE_OSX_DEPLOYMENT_TARGET "10.5" CACHE STRING "Target OSX version")
-        ELSEIF(OSG_OSX_VERSION VERSION_EQUAL 10.4)
-            # 64-bit compiles are not supported with Carbon.
-            SET(CMAKE_OSX_ARCHITECTURES "ppc;i386" CACHE STRING "Build architectures for OSX")
-        ELSE()
-            # No Universal Binary support and SDK detection is too unreliable.
-            # Warn user and continue at their own peril.
-            MESSAGE(WARNING "OSX 10.3 and earlier not supported.")
-        ENDIF()
+        SET(OSG_WINDOWING_SYSTEM "Cocoa" CACHE STRING "Windowing system type for graphics window creation; options: Cocoa, X11 or None.")
     ENDIF()
 ELSE()
     SET(OSG_WINDOWING_SYSTEM "X11" CACHE STRING "Windowing system type for graphics window creation; options: X11 or None.")
 ENDIF()
 
+IF(APPLE AND NOT OSG_BUILD_PLATFORM_IPHONE)
+    IF(CMAKE_OSX_ARCHITECTURES)
+        MESSAGE(STATUS "macOS target architecture(s): ${CMAKE_OSX_ARCHITECTURES}")
+    ELSE()
+        MESSAGE(STATUS "macOS target architecture(s): <unset> - building for the host architecture")
+    ENDIF()
+    IF(CMAKE_OSX_DEPLOYMENT_TARGET)
+        MESSAGE(STATUS "macOS deployment target: ${CMAKE_OSX_DEPLOYMENT_TARGET}")
+    ELSE()
+        MESSAGE(STATUS "macOS deployment target: <unset> - defaults to the build SDK version")
+    ENDIF()
+ENDIF()
+
 IF(OSG_WINDOWING_SYSTEM STREQUAL "None")
-    SET(OSG_WINDOWING_SYSTEM_NONE ON INTERNAL "No windowing system")
+    SET(OSG_WINDOWING_SYSTEM_NONE ON CACHE INTERNAL "No windowing system")
 ENDIF()
 
 SET(OPENSCENEGRAPH_VERSION ${OPENSCENEGRAPH_MAJOR_VERSION}.${OPENSCENEGRAPH_MINOR_VERSION}.${OPENSCENEGRAPH_PATCH_VERSION})
@@ -248,7 +208,8 @@ IF(APPLE)
         SET(OPENGL_gl_LIBRARY "${IPHONE_SDKROOT}/System/Library/Frameworks/OpenGLES.framework")
 
     ELSE ()
-        FIND_LIBRARY(COCOA_LIBRARY Cocoa)
+        UNSET(COCOA_LIBRARY CACHE)
+        SET(COCOA_LIBRARY "-framework Cocoa")
 
         # Apple OS X: Find OpenGL and AGL based on OSG_WINDOWING_SYSTEM
         # This is the accepted way of finding X11/OpenGL on OSX, as
@@ -271,8 +232,10 @@ IF(APPLE)
 
         ELSEIF(OSG_WINDOWING_SYSTEM STREQUAL "Carbon")
           # AGL needed for Carbon windowing systems
-          FIND_LIBRARY(CARBON_LIBRARY Carbon)
-          FIND_LIBRARY(AGL_LIBRARY AGL)
+          UNSET(CARBON_LIBRARY CACHE)
+          UNSET(AGL_LIBRARY CACHE)
+          SET(CARBON_LIBRARY "-framework Carbon")
+          SET(AGL_LIBRARY "-framework AGL")
         ENDIF()
 
         FIND_PACKAGE(OpenGL)
@@ -282,12 +245,11 @@ IF(APPLE)
     OPTION(OSG_COMPILE_FRAMEWORKS "compile frameworks instead of dylibs (experimental)" OFF)
     SET(OSG_COMPILE_FRAMEWORKS_INSTALL_NAME_DIR "@executable_path/../Frameworks" CACHE STRING "install name dir for compiled frameworks")
 ELSE()
-    # Non-Apple: Find OpenGL
-    
+
     # Support EGL on Windows
     IF(OSG_WINDOWING_SYSTEM STREQUAL "Win32" AND (OSG_GLES2_AVAILABLE OR OSG_GLES3_AVAILABLE ) )
         FIND_PACKAGE(EGL)
-    
+
         set(OSG_USE_EGL ON)
 
         IF(OSG_GLES3_AVAILABLE)
@@ -305,24 +267,32 @@ ELSE()
 ENDIF()
 ENDIF()
 
-
-
-
-
 IF(UNIX AND NOT ANDROID)
     # Not sure what this will do on Cygwin and Msys
     # Also, remember OS X X11 is a user installed option so it may not exist.
     FIND_PACKAGE(X11)
     # Some Unicies need explicit linkage to the Math library or the build fails.
     FIND_LIBRARY(MATH_LIBRARY m)
+    IF(MATH_LIBRARY)
+        SET(MATH_LIBRARY m)
+    ELSE()
+        SET(MATH_LIBRARY "")
+    ENDIF()
 
     FIND_LIBRARY(DL_LIBRARY dl)
-    IF(NOT DL_LIBRARY)
+    IF(DL_LIBRARY)
+        SET(DL_LIBRARY dl)
+    ELSE()
         SET(DL_LIBRARY "") # change from NOTFOUND to empty when passed to linker
     ENDIF()
 
     IF( CMAKE_SYSTEM MATCHES "Linux" )
         FIND_LIBRARY( RT_LIBRARY rt )
+        IF(RT_LIBRARY)
+            SET(RT_LIBRARY rt)
+        ELSE()
+            SET(RT_LIBRARY "")
+        ENDIF()
     ENDIF( CMAKE_SYSTEM MATCHES "Linux" )
 
 ENDIF()
@@ -341,6 +311,15 @@ INCLUDE_DIRECTORIES(SYSTEM ${OPENGL_INCLUDE_DIR})
 #ADD_DEFINITIONS(-D)
 # Platform specific definitions
 
+# Both of the below seed target properties at creation time, so they must stay
+# ahead of ADD_SUBDIRECTORY(src) to have any effect.
+IF(APPLE AND NOT ANDROID)
+    # OpenGL is deprecated on macOS and OSG is not migrating off it.
+    ADD_COMPILE_DEFINITIONS(GL_SILENCE_DEPRECATION)
+
+    # Equivalent of -fvisibility-inlines-hidden.
+    SET(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
+ENDIF()
 
 IF(WIN32 AND NOT ANDROID)
     OPTION(OSG_DETERMINE_WIN_VERSION "Wheter to automatically determine current Windows version" ON)
@@ -378,13 +357,19 @@ IF(WIN32 AND NOT ANDROID)
         ADD_DEFINITIONS(-D_SCL_SECURE_NO_WARNINGS)
         ADD_DEFINITIONS(-D_CRT_SECURE_NO_DEPRECATE)
 
-        OPTION(MSVC_DISABLE_CHECKED_ITERATORS "Set to ON to disable Visual C++ checked iterators. If you do this you must ensure that every other project in your solution and all dependencies are compiled with _SECURE_SCL=0." OFF)
-        MARK_AS_ADVANCED(MSVC_DISABLE_CHECKED_ITERATORS)
-        IF(MSVC_DISABLE_CHECKED_ITERATORS)
-            ADD_DEFINITIONS(-D_ITERATOR_DEBUG_LEVEL=0) # this supercedes _SECURE_SCL and _HAS_ITERATOR_DEBUGGING in VS2010 and forward
-            ADD_DEFINITIONS(-D_SECURE_SCL=0)
-            ADD_DEFINITIONS(-D_HAS_ITERATOR_DEBUGGING=0)
-        ENDIF(MSVC_DISABLE_CHECKED_ITERATORS)
+        # Conformance flags. Like the block above these seed target properties at
+        # creation time, so they must precede ADD_SUBDIRECTORY.
+        #   /Zc:__cplusplus - without it MSVC reports __cplusplus as 199711L, which
+        #                     breaks C++20 feature detection in OSG and in Qt6.
+        #   /permissive-    - standard conformance; the default is lenient.
+        #   /utf-8          - treat sources without a BOM as UTF-8. Several OSG
+        #                     sources carry non-ASCII bytes in comments and string
+        #                     literals, which otherwise decode by system codepage.
+        ADD_COMPILE_OPTIONS(
+            "$<$<COMPILE_LANGUAGE:CXX>:/Zc:__cplusplus>"
+            "$<$<COMPILE_LANGUAGE:CXX>:/permissive->"
+            /utf-8
+        )
 
         OPTION(MSVC_USE_DEFAULT_STACK_SIZE "Set to ON to use the default Visual C++ stack size. CMake forces a high stack size by default, which can cause problems for applications with large number of threads." OFF)
         MARK_AS_ADVANCED(MSVC_USE_DEFAULT_STACK_SIZE)
@@ -732,7 +717,6 @@ CONFIGURE_FILE("${CMAKE_CURRENT_SOURCE_DIR}/src/osg/Version.in"
 ################################################################################
 # Set Version Info resource file
 
-
 IF(MSVC)
     SET(OPENSCENEGRAPH_VERSIONINFO_RC "${PROJECT_BINARY_DIR}/PlatformSpecifics/Windows/OpenSceneGraphVersionInfo.rc")
     CONFIGURE_FILE("${CMAKE_CURRENT_SOURCE_DIR}/PlatformSpecifics/Windows/OpenSceneGraphVersionInfo.rc.in"
@@ -751,8 +735,29 @@ OPTION(BUILD_OSG_EXAMPLES "Enable to build OSG Examples" OFF)
 # OSG Plugins disable option for apple build on travis ci test - full build job runs over time limit of 50 min.
 OPTION(BUILD_OSG_PLUGINS "Build OSG Plugins - Disable for compile testing examples on a time limit" ON)
 mark_as_advanced(BUILD_OSG_PLUGINS)
+
+# OSG Tests
+#
+INCLUDE(CTest)
 ################################################################################
 # 3rd Party Dependency Stuff
+
+# Dynamic vs Static Linking.
+OPTION(DYNAMIC_OPENSCENEGRAPH "Set to ON to build OpenSceneGraph for dynamic linking.  Use OFF for static." ON)
+IF   (DYNAMIC_OPENSCENEGRAPH)
+    SET(OPENSCENEGRAPH_USER_DEFINED_DYNAMIC_OR_STATIC "SHARED")
+ELSE ()
+    SET(OPENSCENEGRAPH_USER_DEFINED_DYNAMIC_OR_STATIC "STATIC")
+    IF(NOT WIN32)
+        SET(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ${CMAKE_FIND_LIBRARY_SUFFIXES})
+    ENDIF()
+ENDIF()
+
+# Guarded, so an explicit choice from a preset or the command line still wins.
+IF(WIN32 AND NOT DEFINED ZLIB_USE_STATIC_LIBS)
+    SET(ZLIB_USE_STATIC_LIBS ON)
+ENDIF()
+
 OPTION(OSG_FIND_3RD_PARTY_DEPS "Enable to search for Android or Windows dependencies in ./3rdparty" ON)
 
 IF(WIN32 AND NOT ANDROID AND OSG_FIND_3RD_PARTY_DEPS)
@@ -835,28 +840,18 @@ ENDIF()
 # packages that are installed on platforms that don't require them
 # will still get built (presuming no compatibility issues). But this
 # also means modules that are redundant may get built. For example,
-# OS X doesn't need GIF, JPEG, PNG, TIFF, etc because it uses QuickTime.
 # Also, it will clutter the CMake menu with "NOT_FOUND".
 # The downside to the latter is that it is harder to build those
 # potentially redundant modules.)
 
-# Image readers/writers depend on 3rd party libraries except for OS X which
-# can use Quicktime.
+# Image readers/writers depend on 3rd party libraries.
 IF(NOT (ANDROID AND OSG_FIND_3RD_PARTY_DEPS))
-    IF(NOT APPLE)
-        FIND_PACKAGE(GIFLIB)
-        FIND_PACKAGE(JPEG)
-        FIND_PACKAGE(PNG)
-        FIND_PACKAGE(TIFF)
-        # QuickTime is required for OS X, but optional for Windows.
-        IF(WIN32)
-            FIND_PACKAGE(QuickTime)
-        ENDIF()
+    FIND_PACKAGE(GIFLIB)
+    FIND_PACKAGE(JPEG)
+    FIND_PACKAGE(PNG)
+    FIND_PACKAGE(TIFF)
 
-    ELSE()
-        FIND_PACKAGE(TIFF)
-        FIND_PACKAGE(QuickTime)
-        FIND_PACKAGE(QTKit)
+    IF(APPLE)
         FIND_PACKAGE(CoreVideo)
         FIND_PACKAGE(CoreMedia)
         FIND_PACKAGE(QuartzCore)
@@ -919,22 +914,8 @@ IF(DEFINED LIB_POSTFIX)
   # Use LIB_POSTFIX if defined
   SET(OSG_INSTALL_LIBDIR lib${LIB_POSTFIX})
 ELSE()
-  IF(CMAKE_VERSION VERSION_LESS "2.8.5")
-    IF(UNIX AND NOT WIN32 AND NOT APPLE)
-      IF(CMAKE_SIZEOF_VOID_P MATCHES "8")
-        SET(LIB_POSTFIX "64" CACHE STRING "suffix for 32/64 dir placement")
-        MARK_AS_ADVANCED(LIB_POSTFIX)
-      ENDIF()
-    ENDIF()
-    IF(NOT DEFINED LIB_POSTFIX)
-      SET(LIB_POSTFIX "")
-    ENDIF()
-    SET(OSG_INSTALL_LIBDIR lib${LIB_POSTFIX})
-  ELSE()
-    # Use the GNU standard installation directories for CMake >= 2.8.5
-    INCLUDE(GNUInstallDirs)
-    SET(OSG_INSTALL_LIBDIR ${CMAKE_INSTALL_LIBDIR})
-  ENDIF()
+  INCLUDE(GNUInstallDirs)
+  SET(OSG_INSTALL_LIBDIR ${CMAKE_INSTALL_LIBDIR})
 ENDIF()
 
 # Set installation variables
@@ -948,72 +929,21 @@ ELSE()
     SET(INSTALL_ARCHIVEDIR ${OSG_INSTALL_LIBDIR})
 ENDIF()
 
-# If the version is equal to or greater than 2.8.8, then we can use the
-# CMakePackageConfigHelpers module, which we use for configuring the package
-# config file. If we are not producing the package config file, then there is no
-# point in exporting the targets.
-IF(CMAKE_VERSION VERSION_EQUAL   "2.8.8" OR
-   CMAKE_VERSION VERSION_GREATER "2.8.8")
+# Package export settings. The package itself is generated near the end of this
+# file, once every target that belongs in it has been declared.
+#
+# The namespace stays osg3 so existing consumers keep working.
+SET(PKG_NAMESPACE osg${OPENSCENEGRAPH_MAJOR_VERSION})
 
-    # Tell the project that we will be exporting targets
-    SET(OSG_EXPORT_TARGETS TRUE CACHE BOOL "Install a config-file and export targets")
-
-    # Set the package namespace for exporting
-    SET(PKG_NAMESPACE osg${OPENSCENEGRAPH_MAJOR_VERSION})
-
-    IF(WIN32)
-        SET(INSTALL_CONFIGDIR cmake)
-    ELSE()
-        SET(INSTALL_CONFIGDIR ${OSG_INSTALL_LIBDIR}/cmake/OpenSceneGraph)
-    ENDIF()
-
-    INCLUDE(CMakePackageConfigHelpers)
-    CONFIGURE_PACKAGE_CONFIG_FILE(
-        ${PROJECT_SOURCE_DIR}/packaging/cmake/OpenSceneGraphConfig.cmake.in
-        configure/OpenSceneGraphConfig.cmake
-        INSTALL_DESTINATION ${INSTALL_CONFIGDIR}
-        PATH_VARS INSTALL_INCDIR
-    )
-
-    WRITE_BASIC_PACKAGE_VERSION_FILE(
-        configure/OpenSceneGraphConfigVersion.cmake
-        VERSION ${OPENSCENEGRAPH_VERSION}
-        COMPATIBILITY SameMajorVersion
-    )
-
-    INSTALL(
-        FILES
-            ${PROJECT_BINARY_DIR}/configure/OpenSceneGraphConfig.cmake
-            ${PROJECT_BINARY_DIR}/configure/OpenSceneGraphConfigVersion.cmake
-        DESTINATION ${INSTALL_CONFIGDIR}
-        COMPONENT libopenscenegraph-dev
-    )
-
-ELSE()
-
-    # We don't support exporting creating config files or exporting targets without >=2.8.8
-    SET(OSG_EXPORT_TARGETS FALSE CACHE BOOL "Cannot install config files without CMake >= 2.8.8" FORCE)
-
-ENDIF()
+# lib/cmake/OpenSceneGraph on every platform, Windows included. find_package
+# searches <prefix>/lib/cmake/<name> as a standard location, so a consumer only
+# has to put the install prefix on CMAKE_PREFIX_PATH.
+SET(INSTALL_CONFIGDIR ${OSG_INSTALL_LIBDIR}/cmake/OpenSceneGraph)
 
 SET(INSTALL_PKGCONFIGDIR ${OSG_INSTALL_LIBDIR}/pkgconfig)
 
-# Here we apparently do some funky stuff with making the bin/ and lib/
-# folders which is probably needed to work around a very old CMake bug?
-
-#SET(OUTPUT_BINDIR ${PROJECT_BINARY_DIR}/bin/${CMAKE_SYSTEM_NAME})
 SET(OUTPUT_BINDIR ${PROJECT_BINARY_DIR}/bin)
-MAKE_DIRECTORY(${OUTPUT_BINDIR})
-IF(MSVC AND NOT MSVC_IDE)
-    MAKE_DIRECTORY(${OUTPUT_BINDIR}/${OSG_PLUGINS})
-ENDIF(MSVC AND NOT MSVC_IDE)
-
-#SET(OUTPUT_LIBDIR ${PROJECT_BINARY_DIR}/lib/${CMAKE_SYSTEM_NAME})
 SET(OUTPUT_LIBDIR ${PROJECT_BINARY_DIR}/lib)
-MAKE_DIRECTORY(${OUTPUT_LIBDIR})
-IF(NOT MSVC OR MSVC_IDE)
-    MAKE_DIRECTORY(${OUTPUT_LIBDIR}/${OSG_PLUGINS})
-ENDIF(NOT MSVC OR MSVC_IDE)
 
 # CMake >= 2.8.1 changed the output directory algorithm (See doc).
 # Here we also set per-configuration directories (CMAKE_*_OUTPUT_DIRECTORY_<CONFIG>), or else binaries are generated in /bin/Debug and /bin/Release, etc. with MSVC and Xcode.
@@ -1027,20 +957,17 @@ ELSE(WIN32)
     SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${OUTPUT_LIBDIR})
 ENDIF(WIN32)
 
-# Testing CMAKE_VERSION is possible in >= 2.6.4 only
-BUILDER_VERSION_GREATER(2 8 0)
-IF(VALID_BUILDER_VERSION)  # If CMake >= 2.8.1
-    FOREACH(CONF ${CMAKE_CONFIGURATION_TYPES})        # For each configuration (Debug, Release, MinSizeRel... and/or anything the user chooses)
-        STRING(TOUPPER "${CONF}" CONF)                # Go uppercase (DEBUG, RELEASE...)
-        SET("CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${CONF}" "${OUTPUT_LIBDIR}")
-        SET("CMAKE_RUNTIME_OUTPUT_DIRECTORY_${CONF}" "${OUTPUT_BINDIR}")
-        IF(WIN32)
-            SET("CMAKE_LIBRARY_OUTPUT_DIRECTORY_${CONF}" "${OUTPUT_BINDIR}")
-        ELSE()
-            SET("CMAKE_LIBRARY_OUTPUT_DIRECTORY_${CONF}" "${OUTPUT_LIBDIR}")
-        ENDIF()
-    ENDFOREACH()
-ENDIF(VALID_BUILDER_VERSION)
+# Multi-config generators read the per-configuration properties, not the plain ones
+FOREACH(CONF ${CMAKE_CONFIGURATION_TYPES})        # For each configuration (Debug, Release, MinSizeRel... and/or anything the user chooses)
+    STRING(TOUPPER "${CONF}" CONF)                # Go uppercase (DEBUG, RELEASE...)
+    SET("CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${CONF}" "${OUTPUT_LIBDIR}")
+    SET("CMAKE_RUNTIME_OUTPUT_DIRECTORY_${CONF}" "${OUTPUT_BINDIR}")
+    IF(WIN32)
+        SET("CMAKE_LIBRARY_OUTPUT_DIRECTORY_${CONF}" "${OUTPUT_BINDIR}")
+    ELSE()
+        SET("CMAKE_LIBRARY_OUTPUT_DIRECTORY_${CONF}" "${OUTPUT_LIBDIR}")
+    ENDIF()
+ENDFOREACH()
 
 #SET(INSTALL_BINDIR OpenSceneGraph/bin)
 #SET(INSTALL_INCDIR OpenSceneGraph/include)
@@ -1110,36 +1037,11 @@ ELSEIF(MSVC)
     #C4706 assignment within conditional expression
     #C4589: Constructor of abstract class 'osgGA::CameraManipulator' ignores initializer for virtual base class 'osg::Object'
     SET(OSG_AGGRESSIVE_WARNING_FLAGS /W4 /wd4589 /wd4706 /wd4127 /wd4100)
-ELSEIF(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+ELSEIF(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     SET(OSG_AGGRESSIVE_WARNING_FLAGS  -Wall -Wparentheses -Wno-long-long -Wno-import -pedantic -Wreturn-type -Wmissing-braces -Wunknown-pragmas -Wunused -Wno-overloaded-virtual)
 
     IF (APPLE)
-        SET(OSG_CXX_LANGUAGE_STANDARD "C++11" CACHE STRING "set the c++ language standard (C++98 / GNU++98 / C++11) for OSG" )
-        MARK_AS_ADVANCED(OSG_CXX_LANGUAGE_STANDARD)
-
-        # remove existing flags
-        REMOVE_CXX_FLAG(-std=c++98)
-        REMOVE_CXX_FLAG(-std=gnu++98)
-        REMOVE_CXX_FLAG(-std=c++11)
-        REMOVE_CXX_FLAG(-stdlib=libstdc++)
-        REMOVE_CXX_FLAG(-stdlib=libc++)
-
-        IF(${OSG_CXX_LANGUAGE_STANDARD} STREQUAL "c++98" OR ${OSG_CXX_LANGUAGE_STANDARD} STREQUAL "C++98")
-            set(CMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LANGUAGE_STANDARD "c++98")
-            set(CMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LIBRARY "libstdc++")
-            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++98 -stdlib=libstdc++")
-        ELSEIF(${OSG_CXX_LANGUAGE_STANDARD} STREQUAL "gnu++98" OR ${OSG_CXX_LANGUAGE_STANDARD} STREQUAL "GNU++98")
-            set(CMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LANGUAGE_STANDARD "gnu++98")
-            set(CMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LIBRARY "libstdc++")
-            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++98 -stdlib=libstdc++")
-        ELSE()
-            set(CMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LANGUAGE_STANDARD "c++11")
-            set(CMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LIBRARY "libc++")
-            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -stdlib=libc++")
-        ENDIF()
-
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-overloaded-virtual -Wno-conversion")
-        set(WARNING_CFLAGS "")
+        SET(OSG_AGGRESSIVE_WARNING_FLAGS ${OSG_AGGRESSIVE_WARNING_FLAGS} -Wno-conversion)
     ENDIF()
 ENDIF()
 
@@ -1173,15 +1075,6 @@ IF(OSG_AGGRESSIVE_WARNING_FLAGS)
 ENDIF()
 
 
-# Dynamic vs Static Linking
-OPTION(DYNAMIC_OPENSCENEGRAPH "Set to ON to build OpenSceneGraph for dynamic linking.  Use OFF for static." ON)
-IF   (DYNAMIC_OPENSCENEGRAPH)
-    SET(OPENSCENEGRAPH_USER_DEFINED_DYNAMIC_OR_STATIC "SHARED")
-ELSE ()
-    SET(OPENSCENEGRAPH_USER_DEFINED_DYNAMIC_OR_STATIC "STATIC")
-ENDIF()
-
-
 # OSG Core
 ADD_SUBDIRECTORY(src)
 
@@ -1192,6 +1085,115 @@ ENDIF()
 IF   (BUILD_OSG_EXAMPLES)
     ADD_SUBDIRECTORY(examples)
 ENDIF()
+
+IF   (BUILD_TESTING)
+    ADD_SUBDIRECTORY(tests)
+ENDIF()
+
+
+################################################################################
+# CMake package config
+#
+# Every library installs itself with EXPORT OpenSceneGraphTargets, so the whole
+# project lands in one export set rather than one set per library. That is what lets a Debug and a
+# Release install share a prefix: CMake writes OpenSceneGraphTargets-debug.cmake
+# and OpenSceneGraphTargets-release.cmake beside a single dispatcher that
+# includes whichever ones are present, and picks between them per configuration.
+# It also means inter-library dependencies (osgViewer -> osgGA -> osgDB -> osg
+# -> OpenThreads) are recorded by CMake itself instead of by hand.
+
+INSTALL(
+    EXPORT OpenSceneGraphTargets
+    NAMESPACE ${PKG_NAMESPACE}::
+    DESTINATION ${INSTALL_CONFIGDIR}
+    FILE OpenSceneGraphTargets.cmake
+    COMPONENT libopenscenegraph-dev
+)
+
+# The exported targets refer to third-party imported targets (ZLIB::ZLIB,
+# OpenGL::GL, ...) by name, so the config file has to define those names again
+# before it includes the target file. Each library and plugin that links one
+# registers its package with OSG_ADD_PACKAGE_DEPENDENCY, and that registration
+# is promoted here only when the target actually joins the export set -- see
+# OsgMacroUtils.cmake. Two things follow, and both matter: a package that was
+# found but never linked does not become a hard requirement for consumers, and
+# neither does one linked only by a plugin that a shared build leaves out of the
+# export set. So this list tracks OpenSceneGraphTargets.cmake rather than the
+# build's full dependency set, and is shorter for a shared package than a static
+# one.
+GET_PROPERTY(OSG_PACKAGE_DEPENDENCIES GLOBAL PROPERTY OSG_PACKAGE_DEPENDENCIES)
+IF(OSG_PACKAGE_DEPENDENCIES)
+    LIST(REMOVE_DUPLICATES OSG_PACKAGE_DEPENDENCIES)
+    LIST(SORT OSG_PACKAGE_DEPENDENCIES)
+ENDIF()
+MESSAGE(STATUS "Package dependencies recorded in OpenSceneGraphConfig.cmake: ${OSG_PACKAGE_DEPENDENCIES}")
+
+IF(DYNAMIC_OPENSCENEGRAPH)
+    SET(OSG_CONFIG_STATIC_BUILD FALSE)
+ELSE()
+    SET(OSG_CONFIG_STATIC_BUILD TRUE)
+ENDIF()
+
+IF(ZLIB_USE_STATIC_LIBS)
+    SET(OSG_CONFIG_ZLIB_USE_STATIC_LIBS TRUE)
+ELSE()
+    SET(OSG_CONFIG_ZLIB_USE_STATIC_LIBS FALSE)
+ENDIF()
+SET(OSG_CONFIG_FIND_DEPENDENCY_CALLS "")
+FOREACH(dependency ${OSG_PACKAGE_DEPENDENCIES})
+    STRING(APPEND OSG_CONFIG_FIND_DEPENDENCY_CALLS "    find_dependency(${dependency})\n")
+ENDFOREACH()
+
+# A dependency whose find module CMake does not ship has to travel with the
+# package, or the consumer's find_dependency() finds nothing to run.
+#
+# Computed rather than listed: any registered dependency that CMake has no module
+# for, and that this project bundles one for, gets installed beside the config
+# file. That keeps working if another such plugin is enabled later.
+SET(OSG_CONFIG_BUNDLED_FIND_MODULES "")
+FOREACH(dependency ${OSG_PACKAGE_DEPENDENCIES})
+    IF(NOT EXISTS "${CMAKE_ROOT}/Modules/Find${dependency}.cmake"
+       AND EXISTS "${PROJECT_SOURCE_DIR}/CMakeModules/Find${dependency}.cmake")
+        LIST(APPEND OSG_CONFIG_BUNDLED_FIND_MODULES
+             "${PROJECT_SOURCE_DIR}/CMakeModules/Find${dependency}.cmake")
+    ENDIF()
+ENDFOREACH()
+
+IF(OSG_CONFIG_BUNDLED_FIND_MODULES)
+    INSTALL(
+        FILES       ${OSG_CONFIG_BUNDLED_FIND_MODULES}
+        DESTINATION ${INSTALL_CONFIGDIR}/modules
+        COMPONENT   libopenscenegraph-dev
+    )
+    SET(OSG_CONFIG_BUNDLED_MODULE_NAMES "")
+    FOREACH(module ${OSG_CONFIG_BUNDLED_FIND_MODULES})
+        GET_FILENAME_COMPONENT(module_name ${module} NAME)
+        LIST(APPEND OSG_CONFIG_BUNDLED_MODULE_NAMES ${module_name})
+    ENDFOREACH()
+    MESSAGE(STATUS
+        "Find modules installed with the package (CMake ships none): ${OSG_CONFIG_BUNDLED_MODULE_NAMES}")
+ENDIF()
+
+INCLUDE(CMakePackageConfigHelpers)
+CONFIGURE_PACKAGE_CONFIG_FILE(
+    ${PROJECT_SOURCE_DIR}/packaging/cmake/OpenSceneGraphConfig.cmake.in
+    configure/OpenSceneGraphConfig.cmake
+    INSTALL_DESTINATION ${INSTALL_CONFIGDIR}
+)
+
+WRITE_BASIC_PACKAGE_VERSION_FILE(
+    configure/OpenSceneGraphConfigVersion.cmake
+    VERSION ${OPENSCENEGRAPH_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
+
+INSTALL(
+    FILES
+        ${PROJECT_BINARY_DIR}/configure/OpenSceneGraphConfig.cmake
+        ${PROJECT_BINARY_DIR}/configure/OpenSceneGraphConfigVersion.cmake
+    DESTINATION ${INSTALL_CONFIGDIR}
+    COMPONENT libopenscenegraph-dev
+)
 
 
 IF(APPLE AND NOT ANDROID)
@@ -1208,30 +1210,8 @@ IF(APPLE AND NOT ANDROID)
         OPTION(OSG_BUILD_APPLICATION_BUNDLES "Enable the building of applications and examples as OSX Bundles" ON)
 
     ELSE()
-
-        # Set defaults for Universal Binaries. We want 32-bit Intel/PPC on 10.4
-        # and 32/64-bit Intel/PPC on >= 10.5. Anything <= 10.3 doesn't support.
-
-        # These are just defaults/recommendations, but how we want to build
-        # out of the box. But the user needs to be able to change these options.
-        # So we must only set the values the first time CMake is run, or we
-        # will overwrite any changes the user sets.
-        # FORCE is used because the options are not reflected in the UI otherwise.
-        # Seems like a good place to add version specific compiler flags too.
         IF(NOT OSG_CONFIG_HAS_BEEN_RUN_BEFORE)
-          IF(OSG_OSX_VERSION VERSION_GREATER 10.7)
-            SET(OSG_DEFAULT_IMAGE_PLUGIN_FOR_OSX "imageio" CACHE STRING "Forced imageio default image plugin for OSX" FORCE)
-            SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility-inlines-hidden" CACHE STRING "Flags used by the compiler during all build types." FORCE)
-          ELSEIF(OSG_OSX_VERSION VERSION_EQUAL 10.7)
-            SET(OSG_DEFAULT_IMAGE_PLUGIN_FOR_OSX "imageio" CACHE STRING "Forced imageio default image plugin for OSX" FORCE)
-            SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility-inlines-hidden" CACHE STRING "Flags used by the compiler during all build types." FORCE)
-          ELSEIF(OSG_OSX_VERSION VERSION_GREATER 10.4)
-            SET(OSG_DEFAULT_IMAGE_PLUGIN_FOR_OSX "imageio" CACHE STRING "Forced imageio default image plugin for OSX" FORCE)
-            SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ftree-vectorize -fvisibility-inlines-hidden" CACHE STRING "Flags used by the compiler during all build types." FORCE)
-          ELSEIF(OSG_OSX_VERSION VERSION_EQUAL 10.4)
-            SET(OSG_DEFAULT_IMAGE_PLUGIN_FOR_OSX "quicktime" CACHE STRING "Forced imageio default image plugin for OSX" FORCE)
-            SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ftree-vectorize -fvisibility-inlines-hidden" CACHE STRING "Flags used by the compiler during all build types." FORCE)
-          ENDIF()
+            SET(OSG_DEFAULT_IMAGE_PLUGIN_FOR_OSX "imageio" CACHE STRING "Default image plugin for macOS" FORCE)
         ENDIF()
 
         OPTION(OSG_BUILD_APPLICATION_BUNDLES "Enable the building of applications and examples as OSX Bundles" OFF)
@@ -1242,7 +1222,6 @@ ENDIF()
 
 
 # For Doxygen
-INCLUDE(${CMAKE_ROOT}/Modules/Documentation.cmake OPTIONAL)
 OPTION(BUILD_DOCUMENTATION "Build OpenSceneGraph reference documentation using doxygen (use: make doc_openscenegraph doc_openthreads)" OFF)
 MARK_AS_ADVANCED(CLEAR BUILD_DOCUMENTATION)
 # To build the documention, you will have to enable it
@@ -1333,13 +1312,6 @@ IF(BUILD_DOCUMENTATION)
     )
     SET_TARGET_PROPERTIES(doc_openthreads PROPERTIES FOLDER "Documentation")
 ENDIF(BUILD_DOCUMENTATION)
-
-OPTION(BUILD_DASHBOARD_REPORTS "Set to ON to activate reporting of OpenSceneGraph builds here http://cdash.openscenegraph.org/index.php?project=OpenSceneGraph" OFF)
-IF(BUILD_DASHBOARD_REPORTS)
-# The following are required to uses Dart and the Cdash dashboard
-# viewable here : http://cdash.openscenegraph.org/index.php?project=OpenSceneGraph
-    INCLUDE(Dart)
-ENDIF()
 
 # present the packaging option only if we have the cpack command defined (effectively >= 2.6.0)
 IF(CMAKE_CPACK_COMMAND)

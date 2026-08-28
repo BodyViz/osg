@@ -1,0 +1,133 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 30,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "installDir": "${sourceDir}/build/install/${presetName}",
+      "cacheVariables": {
+        "CMAKE_CONFIGURATION_TYPES": "Debug;Release",
+        "CMAKE_CXX_STANDARD": "20",
+        "CMAKE_CXX_STANDARD_REQUIRED": "ON",
+        "CMAKE_CXX_EXTENSIONS": "OFF",
+        "DYNAMIC_OPENSCENEGRAPH": "OFF",
+        "DYNAMIC_OPENTHREADS": "OFF",
+        "BUILD_OSG_EXAMPLES": "OFF"
+      },
+      "description": "Shared settings. Everything in this file is a hidden base: a build needs third-party dependency prefixes, which are machine-specific, so the invocable presets live in CMakeUserPresets.json and inherit from here. See CMakeUserPresets.json.example."
+    },
+    {
+      "name": "macos",
+      "hidden": true,
+      "inherits": "base",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      },
+      "cacheVariables": {
+        "CMAKE_OSX_DEPLOYMENT_TARGET": "13.0"
+      }
+    },
+    {
+      "name": "windows",
+      "hidden": true,
+      "inherits": "base",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "generator": "Visual Studio 17 2022",
+      "architecture": {
+        "value": "x64",
+        "strategy": "set"
+      },
+      "cacheVariables": {
+        "OSG_FIND_3RD_PARTY_DEPS": "OFF",
+        "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL"
+      },
+      "description": "Windows x64, /MD. Official Qt6 binaries are /MD and mixing CRTs across the Qt boundary gives LNK2038 or silent heap corruption, so /MD is a requirement rather than a choice. A /MT variant used to live here; it was removed because it cannot serve a Qt6 application."
+    },
+    {
+      "name": "shared",
+      "hidden": true,
+      "cacheVariables": {
+        "DYNAMIC_OPENSCENEGRAPH": "ON",
+        "DYNAMIC_OPENTHREADS": "ON"
+      },
+      "description": "Overlay that flips the build to shared libraries."
+    },
+    {
+      "name": "mac-ninja-base",
+      "inherits": "macos",
+      "generator": "Ninja Multi-Config",
+      "hidden": true
+    },
+    {
+      "name": "mac-xcode-base",
+      "inherits": "macos",
+      "generator": "Xcode",
+      "hidden": true
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "macos-build",
+      "hidden": true,
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      }
+    },
+    {
+      "name": "windows-build",
+      "hidden": true,
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "test-base",
+      "hidden": true,
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error",
+        "stopOnFailure": false
+      }
+    },
+    {
+      "name": "macos-test",
+      "hidden": true,
+      "inherits": "test-base",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      }
+    },
+    {
+      "name": "windows-test",
+      "hidden": true,
+      "inherits": "test-base",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    }
+  ]
+}

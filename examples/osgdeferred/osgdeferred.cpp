@@ -33,13 +33,17 @@
 #include <osgUtil/TangentSpaceGenerator>
 
 #ifdef OSG_LIBRARY_STATIC
-// in case of a static build...
-USE_OSGPLUGIN(osg2)
-USE_OSGPLUGIN(png)
-USE_OSGPLUGIN(jpeg)
-USE_OSGPLUGIN(glsl)
-USE_SERIALIZER_WRAPPER_LIBRARY(osg)
-USE_GRAPHICSWINDOW()
+    // in case of a static build...
+    USE_OSGPLUGIN(osg2)
+    #ifdef USE_PNG
+        USE_OSGPLUGIN(png)
+    #endif
+    #ifdef USE_JPEG
+        USE_OSGPLUGIN(jpeg)
+    #endif
+        USE_OSGPLUGIN(glsl)
+        USE_SERIALIZER_WRAPPER_LIBRARY(osg)
+        USE_GRAPHICSWINDOW()
 #endif
 
 
@@ -374,4 +378,3 @@ int main()
 
     return viewer.run();
 }
-

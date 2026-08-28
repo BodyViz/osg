@@ -1,16 +1,14 @@
 IF  (DCMTK_FOUND)
 
-    # note, we have to include a '/' in front of the directory string to prevent a CMake bug from ignoring the directory
-    INCLUDE_DIRECTORIES(${DCMTK_INCLUDE_DIRS})
-
     SET(TARGET_SRC ReaderWriterDICOM.cpp )
 
-    LINK_LIBRARIES(${DCMTK_LIBRARIES})
+    SET(TARGET_EXTERNAL_LIBRARIES DCMTK::dcmimage)
+    OSG_ADD_PACKAGE_DEPENDENCY(DCMTK)
 
     ADD_DEFINITIONS(-DUSE_DCMTK)
 
     IF (WIN32)
-        SET(TARGET_EXTERNAL_LIBRARIES wsock32.lib ws2_32.lib)
+        SET(TARGET_EXTERNAL_LIBRARIES ${TARGET_EXTERNAL_LIBRARIES} wsock32.lib ws2_32.lib)
     ENDIF()
 
 ELSEIF(ITK_FOUND)
@@ -29,7 +27,6 @@ ENDIF()
 SET(TARGET_ADDED_LIBRARIES osgVolume )
 
 IF(CMAKE_COMPILER_IS_GNUCXX)
-    # Remove -pedantic flag as it barfs on ffmpeg headers
    STRING(REGEX REPLACE "-pedantic" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 ENDIF()
 

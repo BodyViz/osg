@@ -32,11 +32,7 @@
 
 #define SERIALIZER() OpenThreads::ScopedLock<OpenThreads::ReentrantMutex> lock(_serializerMutex)
 
-#if  __cplusplus > 199711L
-    #define smart_ptr std::unique_ptr
-#else
-    #define smart_ptr std::auto_ptr
-#endif
+#define smart_ptr std::unique_ptr
 
 osgDB::ReaderWriter::ReadResult
 ReaderWriterDAE::readNode(std::istream& fin,

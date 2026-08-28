@@ -27,6 +27,9 @@
 
 #include <string.h>
 
+#include <algorithm>
+#include <cctype>
+
 using namespace obj;
 
 
@@ -37,9 +40,11 @@ using namespace obj;
 
 static std::string strip( const std::string& ss )
 {
+    auto notSpace = []( char c ) { return std::isspace( static_cast< unsigned char >( c ) ) == 0; };
+
     std::string result;
-    result.assign( std::find_if( ss.begin(), ss.end(), std::not1( std::ptr_fun< int, int >( isspace ) ) ),
-                   std::find_if( ss.rbegin(), ss.rend(), std::not1( std::ptr_fun< int, int >( isspace ) ) ).base() );
+    result.assign( std::find_if( ss.begin(), ss.end(), notSpace ),
+                   std::find_if( ss.rbegin(), ss.rend(), notSpace ).base() );
     return( result );
 }
 

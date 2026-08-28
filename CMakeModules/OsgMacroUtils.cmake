@@ -9,31 +9,30 @@
 #  the content of this library for linking when in debugging
 #######################################################################################################
 
-# VALID_BUILDER_VERSION: used for replacing CMAKE_VERSION (available in v2.6.3 RC9) and VERSION_GREATER/VERSION_LESS (available in 2.6.2 RC4).
-# This can be replaced by "IF(${CMAKE_VERSION} VERSION_LESS "x.y.z")" from 2.6.4.
-SET(VALID_BUILDER_VERSION OFF)
-MACRO(BUILDER_VERSION_GREATER MAJOR_VER MINOR_VER PATCH_VER)
-    SET(VALID_BUILDER_VERSION OFF)
-    IF(CMAKE_MAJOR_VERSION GREATER ${MAJOR_VER})
-        SET(VALID_BUILDER_VERSION ON)
-    ELSEIF(CMAKE_MAJOR_VERSION EQUAL ${MAJOR_VER})
-        IF(CMAKE_MINOR_VERSION GREATER ${MINOR_VER})
-            SET(VALID_BUILDER_VERSION ON)
-        ELSEIF(CMAKE_MINOR_VERSION EQUAL ${MINOR_VER})
-            IF(CMAKE_PATCH_VERSION GREATER ${PATCH_VER})
-                SET(VALID_BUILDER_VERSION ON)
-            ENDIF(CMAKE_PATCH_VERSION GREATER ${PATCH_VER})
-        ENDIF()
+#######################################################################################################
+# Records that some target names an imported target from another package.
+#
+# install(EXPORT) writes imported targets into the exported link interface by
+# name, not by path, so the name has to exist again on the consumer's machine.
+# The root CMakeLists turns this list into the find_dependency() calls at the top
+# of OpenSceneGraphConfig.cmake.
+#
+#######################################################################################################
+
+FUNCTION(OSG_ADD_PACKAGE_DEPENDENCY PACKAGE_NAME)
+    SET_PROPERTY(DIRECTORY APPEND PROPERTY OSG_PENDING_PACKAGE_DEPENDENCIES "${PACKAGE_NAME}")
+ENDFUNCTION(OSG_ADD_PACKAGE_DEPENDENCY)
+
+# Call from wherever a target is added to EXPORT OpenSceneGraphTargets. Anything
+# this directory registered and never promotes is a dependency of a target the
+# installed package does not describe, so consumers must not be asked for it.
+MACRO(OSG_PROMOTE_PACKAGE_DEPENDENCIES)
+    GET_PROPERTY(OSG_PENDING_DEPENDENCIES DIRECTORY PROPERTY OSG_PENDING_PACKAGE_DEPENDENCIES)
+    IF(OSG_PENDING_DEPENDENCIES)
+        SET_PROPERTY(GLOBAL APPEND PROPERTY OSG_PACKAGE_DEPENDENCIES ${OSG_PENDING_DEPENDENCIES})
     ENDIF()
-ENDMACRO(BUILDER_VERSION_GREATER MAJOR_VER MINOR_VER PATCH_VER)
-
-
-# CMAKE_VERSION_TEST: Define whether "IF(${CMAKE_VERSION} VERSION_LESS "x.y.z")" can be used or not.
-BUILDER_VERSION_GREATER(2 8 0)
-SET(CMAKE_VERSION_TEST ${VALID_BUILDER_VERSION})        # >= 2.8.0
-
-SET(VALID_BUILDER_VERSION OFF)
-
+    UNSET(OSG_PENDING_DEPENDENCIES)
+ENDMACRO(OSG_PROMOTE_PACKAGE_DEPENDENCIES)
 
 MACRO(LINK_WITH_VARIABLES TRGTNAME)
     FOREACH(varname ${ARGN})
@@ -50,22 +49,7 @@ MACRO(LINK_WITH_VARIABLES TRGTNAME)
 ENDMACRO(LINK_WITH_VARIABLES TRGTNAME)
 
 MACRO(LINK_INTERNAL TRGTNAME)
-    IF(NOT CMAKE24)
-        TARGET_LINK_LIBRARIES(${TRGTNAME} ${ARGN})
-    ELSE(NOT CMAKE24)
-        FOREACH(LINKLIB ${ARGN})
-            IF(MSVC AND OSG_MSVC_VERSIONED_DLL)
-                #when using versioned names, the .dll name differ from .lib name, there is a problem with that:
-                #CMake 2.4.7, at least seem to use PREFIX instead of IMPORT_PREFIX  for computing linkage info to use into projects,
-                # so we full path name to specify linkage, this prevent automatic inferencing of dependencies, so we add explicit depemdencies
-                #to library targets used
-                TARGET_LINK_LIBRARIES(${TRGTNAME} optimized "${OUTPUT_LIBDIR}/${LINKLIB}${CMAKE_RELEASE_POSTFIX}.lib" debug "${OUTPUT_LIBDIR}/${LINKLIB}${CMAKE_DEBUG_POSTFIX}.lib")
-                ADD_DEPENDENCIES(${TRGTNAME} ${LINKLIB})
-            ELSE(MSVC AND OSG_MSVC_VERSIONED_DLL)
-                TARGET_LINK_LIBRARIES(${TRGTNAME} optimized "${LINKLIB}${CMAKE_RELEASE_POSTFIX}" debug "${LINKLIB}${CMAKE_DEBUG_POSTFIX}")
-            ENDIF(MSVC AND OSG_MSVC_VERSIONED_DLL)
-        ENDFOREACH(LINKLIB)
-    ENDIF(NOT CMAKE24)
+    TARGET_LINK_LIBRARIES(${TRGTNAME} ${ARGN})
 ENDMACRO(LINK_INTERNAL TRGTNAME)
 
 MACRO(LINK_EXTERNAL TRGTNAME)
@@ -76,14 +60,35 @@ ENDMACRO(LINK_EXTERNAL TRGTNAME)
 
 
 #######################################################################################################
+# Sets ALL_GL_LIBRARIES to whatever provides GL on this platform.
+#
+# Prefer the imported target: install(EXPORT) records it by name, so
+# find_dependency(OpenGL) recreates it on the consumer's machine.
+# ${OPENGL_gl_LIBRARY} is an absolute path -- inside the active SDK on macOS --
+# and would be frozen into the installed package. The iOS and GLES branches of
+# the root CMakeLists set the variable by hand without calling
+# FIND_PACKAGE(OpenGL), so the raw fallback has to stay.
+#######################################################################################################
+
+MACRO(SET_ALL_GL_LIBRARIES)
+    IF(TARGET OpenGL::GL)
+        SET(ALL_GL_LIBRARIES OpenGL::GL)
+    ELSE()
+        SET(ALL_GL_LIBRARIES ${OPENGL_gl_LIBRARY})
+    ENDIF()
+    IF (OSG_GLES1_AVAILABLE OR OSG_GLES2_AVAILABLE OR OSG_GLES3_AVAILABLE)
+        SET(ALL_GL_LIBRARIES ${ALL_GL_LIBRARIES} ${EGL_LIBRARY})
+    ENDIF()
+ENDMACRO(SET_ALL_GL_LIBRARIES)
+
+#######################################################################################################
 #  macro for common setup of core libraries: it links OPENGL_LIBRARIES in undifferentiated mode
 #######################################################################################################
 
 MACRO(LINK_CORELIB_DEFAULT CORELIB_NAME)
-    #SET(ALL_GL_LIBRARIES ${OPENGL_LIBRARIES})
-    SET(ALL_GL_LIBRARIES ${OPENGL_gl_LIBRARY})
-    IF (OSG_GLES1_AVAILABLE OR OSG_GLES2_AVAILABLE OR OSG_GLES3_AVAILABLE)
-        SET(ALL_GL_LIBRARIES ${ALL_GL_LIBRARIES} ${EGL_LIBRARY})
+    SET_ALL_GL_LIBRARIES()
+    IF(TARGET OpenGL::GL)
+        OSG_ADD_PACKAGE_DEPENDENCY(OpenGL)
     ENDIF()
 
     LINK_EXTERNAL(${CORELIB_NAME} ${ALL_GL_LIBRARIES})
@@ -131,11 +136,7 @@ MACRO(SETUP_LINK_LIBRARIES)
       ENDIF(TO_INSERT)
     ENDFOREACH(LINKLIB)
 
-    #SET(ALL_GL_LIBRARIES ${OPENGL_LIBRARIES})
-    SET(ALL_GL_LIBRARIES ${OPENGL_gl_LIBRARY})
-    IF (OSG_GLES1_AVAILABLE OR OSG_GLES2_AVAILABLE OR OSG_GLES3_AVAILABLE)
-        SET(ALL_GL_LIBRARIES ${ALL_GL_LIBRARIES} ${EGL_LIBRARY})
-    ENDIF()
+    SET_ALL_GL_LIBRARIES()
 
 #    FOREACH(LINKLIB ${TARGET_LIBRARIES})
 #            TARGET_LINK_LIBRARIES(${TARGET_TARGETNAME} optimized ${LINKLIB} debug "${LINKLIB}${CMAKE_DEBUG_POSTFIX}")
@@ -159,41 +160,32 @@ ENDMACRO(SETUP_LINK_LIBRARIES)
 # this is the common set of command for all the plugins
 #
 
-# Sets the output directory property for CMake >= 2.6.0, giving an output path RELATIVE to default one
+# Redirects a target's build output into a subdirectory of the default one.
+#
+# Load-bearing for shared builds: a plugin has to sit in a directory literally
+# named osgPlugins-<version>, because Registry::createLibraryNameForExtension()
+# prepends that directory to every filename it dlopens.
 MACRO(SET_OUTPUT_DIR_PROPERTY_260 TARGET_TARGETNAME RELATIVE_OUTDIR)
-    BUILDER_VERSION_GREATER(2 8 0)
-    IF(NOT VALID_BUILDER_VERSION)
-        # If CMake <= 2.8.0 (Testing CMAKE_VERSION is possible in >= 2.6.4)
-        IF(MSVC_IDE)
-            # Using the "prefix" hack
-            SET_TARGET_PROPERTIES(${TARGET_TARGETNAME} PROPERTIES PREFIX "../${RELATIVE_OUTDIR}/")
-        ELSE(MSVC_IDE)
-            SET_TARGET_PROPERTIES(${TARGET_TARGETNAME} PROPERTIES PREFIX "${RELATIVE_OUTDIR}/")
-        ENDIF(MSVC_IDE)
-    ELSE(NOT VALID_BUILDER_VERSION)
-        # Using the output directory properties
+    # Global properties (single-config generators)
+    FILE(TO_CMAKE_PATH "${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/${RELATIVE_OUTDIR}" TMPVAR)
+    SET_TARGET_PROPERTIES(${TARGET_TARGETNAME} PROPERTIES ARCHIVE_OUTPUT_DIRECTORY "${TMPVAR}")
+    FILE(TO_CMAKE_PATH "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${RELATIVE_OUTDIR}" TMPVAR)
+    SET_TARGET_PROPERTIES(${TARGET_TARGETNAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${TMPVAR}")
+    FILE(TO_CMAKE_PATH "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${RELATIVE_OUTDIR}" TMPVAR)
+    SET_TARGET_PROPERTIES(${TARGET_TARGETNAME} PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${TMPVAR}")
 
-        # Global properties (All generators but VS & Xcode)
-        FILE(TO_CMAKE_PATH TMPVAR "CMAKE_ARCHIVE_OUTPUT_DIRECTORY/${RELATIVE_OUTDIR}")
-        SET_TARGET_PROPERTIES(${TARGET_TARGETNAME} PROPERTIES ARCHIVE_OUTPUT_DIRECTORY "${TMPVAR}")
-        FILE(TO_CMAKE_PATH TMPVAR "CMAKE_RUNTIME_OUTPUT_DIRECTORY/${RELATIVE_OUTDIR}")
-        SET_TARGET_PROPERTIES(${TARGET_TARGETNAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${TMPVAR}")
-        FILE(TO_CMAKE_PATH TMPVAR "CMAKE_LIBRARY_OUTPUT_DIRECTORY/${RELATIVE_OUTDIR}")
-        SET_TARGET_PROPERTIES(${TARGET_TARGETNAME} PROPERTIES LIBRARY_OUTPUT_DIRECTORY "${TMPVAR}")
+    # Per-configuration properties
+    FOREACH(CONF ${CMAKE_CONFIGURATION_TYPES})        # For each configuration (Debug, Release, MinSizeRel... and/or anything the user chooses)
+        STRING(TOUPPER "${CONF}" CONF)                # Go uppercase (DEBUG, RELEASE...)
 
-        # Per-configuration property (VS, Xcode)
-        FOREACH(CONF ${CMAKE_CONFIGURATION_TYPES})        # For each configuration (Debug, Release, MinSizeRel... and/or anything the user chooses)
-            STRING(TOUPPER "${CONF}" CONF)                # Go uppercase (DEBUG, RELEASE...)
-
-            # We use "FILE(TO_CMAKE_PATH", to create nice looking paths
-            FILE(TO_CMAKE_PATH "${CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${CONF}}/${RELATIVE_OUTDIR}" TMPVAR)
-            SET_TARGET_PROPERTIES(${TARGET_TARGETNAME} PROPERTIES "ARCHIVE_OUTPUT_DIRECTORY_${CONF}" "${TMPVAR}")
-            FILE(TO_CMAKE_PATH "${CMAKE_RUNTIME_OUTPUT_DIRECTORY_${CONF}}/${RELATIVE_OUTDIR}" TMPVAR)
-            SET_TARGET_PROPERTIES(${TARGET_TARGETNAME} PROPERTIES "RUNTIME_OUTPUT_DIRECTORY_${CONF}" "${TMPVAR}")
-            FILE(TO_CMAKE_PATH "${CMAKE_LIBRARY_OUTPUT_DIRECTORY_${CONF}}/${RELATIVE_OUTDIR}" TMPVAR)
-            SET_TARGET_PROPERTIES(${TARGET_TARGETNAME} PROPERTIES "LIBRARY_OUTPUT_DIRECTORY_${CONF}" "${TMPVAR}")
-        ENDFOREACH(CONF ${CMAKE_CONFIGURATION_TYPES})
-    ENDIF(NOT VALID_BUILDER_VERSION)
+        # We use "FILE(TO_CMAKE_PATH", to create nice looking paths
+        FILE(TO_CMAKE_PATH "${CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${CONF}}/${RELATIVE_OUTDIR}" TMPVAR)
+        SET_TARGET_PROPERTIES(${TARGET_TARGETNAME} PROPERTIES "ARCHIVE_OUTPUT_DIRECTORY_${CONF}" "${TMPVAR}")
+        FILE(TO_CMAKE_PATH "${CMAKE_RUNTIME_OUTPUT_DIRECTORY_${CONF}}/${RELATIVE_OUTDIR}" TMPVAR)
+        SET_TARGET_PROPERTIES(${TARGET_TARGETNAME} PROPERTIES "RUNTIME_OUTPUT_DIRECTORY_${CONF}" "${TMPVAR}")
+        FILE(TO_CMAKE_PATH "${CMAKE_LIBRARY_OUTPUT_DIRECTORY_${CONF}}/${RELATIVE_OUTDIR}" TMPVAR)
+        SET_TARGET_PROPERTIES(${TARGET_TARGETNAME} PROPERTIES "LIBRARY_OUTPUT_DIRECTORY_${CONF}" "${TMPVAR}")
+    ENDFOREACH(CONF ${CMAKE_CONFIGURATION_TYPES})
 ENDMACRO(SET_OUTPUT_DIR_PROPERTY_260 TARGET_TARGETNAME RELATIVE_OUTDIR)
 
 
@@ -227,8 +219,13 @@ MACRO(SETUP_LIBRARY LIB_NAME)
         TARGET_INCLUDE_DIRECTORIES(${LIB_NAME}
             PUBLIC
                 $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+                $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
                 $<INSTALL_INTERFACE:${INSTALL_INCDIR}>
         )
+
+        IF(OPENSCENEGRAPH_USER_DEFINED_DYNAMIC_OR_STATIC STREQUAL "STATIC")
+            TARGET_COMPILE_DEFINITIONS(${LIB_NAME} PUBLIC OSG_LIBRARY_STATIC)
+        ENDIF()
 
         SET_TARGET_PROPERTIES(${LIB_NAME} PROPERTIES FOLDER "OSG Core")
         IF(APPLE)
@@ -251,6 +248,8 @@ MACRO(SETUP_LIBRARY LIB_NAME)
             LINK_WITH_VARIABLES(${LIB_NAME} ${TARGET_LIBRARIES_VARS})
         ENDIF(TARGET_LIBRARIES_VARS)
         LINK_CORELIB_DEFAULT(${LIB_NAME})
+
+    OSG_PROMOTE_PACKAGE_DEPENDENCIES()
 
     INCLUDE(ModuleInstall OPTIONAL)
 ENDMACRO(SETUP_LIBRARY LIB_NAME)
@@ -297,46 +296,38 @@ MACRO(SETUP_PLUGIN PLUGIN_NAME)
       SET(PACKAGE_COMPONENT libopenscenegraph)
     ENDIF(${ARGC} GREATER 1)
 
-    # Add the VisualStudio versioning info
-    SET(TARGET_SRC ${TARGET_SRC} ${OPENSCENEGRAPH_VERSIONINFO_RC})
+    # Add the VisualStudio versioning info, but only to shared plugins.
+    IF(DYNAMIC_OPENSCENEGRAPH)
+        SET(TARGET_SRC ${TARGET_SRC} ${OPENSCENEGRAPH_VERSIONINFO_RC})
+    ENDIF()
 
     # here we use the command to generate the library
-
     IF   (DYNAMIC_OPENSCENEGRAPH)
         ADD_LIBRARY(${TARGET_TARGETNAME} MODULE ${TARGET_SRC} ${TARGET_H})
     ELSE (DYNAMIC_OPENSCENEGRAPH)
         ADD_LIBRARY(${TARGET_TARGETNAME} STATIC ${TARGET_SRC} ${TARGET_H})
+
+        # Record the target so an application can link the whole plugin set
+        # without naming each one. Only static plugins go on the list -- a MODULE
+        # is dlopened at runtime and is not linkable at all. Read back with
+        # GET_PROPERTY(... GLOBAL PROPERTY OSG_STATIC_PLUGIN_TARGETS); see
+        # applications/osgconv/CMakeLists.txt. Same pattern as
+        # OSG_PACKAGE_DEPENDENCIES.
+        SET_PROPERTY(GLOBAL APPEND PROPERTY OSG_STATIC_PLUGIN_TARGETS ${TARGET_TARGETNAME})
     ENDIF(DYNAMIC_OPENSCENEGRAPH)
 
     IF(MSVC)
-        IF(NOT CMAKE24)
-            SET_OUTPUT_DIR_PROPERTY_260(${TARGET_TARGETNAME} "${OSG_PLUGINS}")        # Sets the ouput to be /osgPlugin-X.X.X ; also ensures the /Debug /Release are removed
-        ELSE(NOT CMAKE24)
-
-            IF(OSG_MSVC_VERSIONED_DLL)
-
-                #this is a hack... the build place is set to lib/<debug or release> by LIBARARY_OUTPUT_PATH equal to OUTPUT_LIBDIR
-                #the .lib will be crated in ../ so going straight in lib by the IMPORT_PREFIX property
-                #because we want dll placed in OUTPUT_BINDIR ie the bin folder sibling of lib, we can use ../../bin to go there,
-                #it is hardcoded, we should compute OUTPUT_BINDIR position relative to OUTPUT_LIBDIR ... to be implemented
-                #changing bin to something else breaks this hack
-                #the dll are placed in bin/${OSG_PLUGINS}
-
-                IF(NOT MSVC_IDE)
-                    SET_TARGET_PROPERTIES(${TARGET_TARGETNAME} PROPERTIES PREFIX "../bin/${OSG_PLUGINS}/")
-                ELSE(NOT MSVC_IDE)
-                    SET_TARGET_PROPERTIES(${TARGET_TARGETNAME} PROPERTIES PREFIX "../../bin/${OSG_PLUGINS}/" IMPORT_PREFIX "../")
-                ENDIF(NOT MSVC_IDE)
-
-            ELSE(OSG_MSVC_VERSIONED_DLL)
-
-                #in standard mode (unversioned) the .lib and .dll are placed in lib/<debug or release>/${OSG_PLUGINS}.
-                #here the PREFIX property has been used, the same result would be accomplidhe by prepending ${OSG_PLUGINS}/ to OUTPUT_NAME target property
-
-                SET_TARGET_PROPERTIES(${TARGET_TARGETNAME} PROPERTIES PREFIX "${OSG_PLUGINS}/")
-            ENDIF(OSG_MSVC_VERSIONED_DLL)
-
-        ENDIF(NOT CMAKE24)
+        SET_OUTPUT_DIR_PROPERTY_260(${TARGET_TARGETNAME} "${OSG_PLUGINS}")        # Sets the ouput to be /osgPlugin-X.X.X ; also ensures the /Debug /Release are removed
+    ELSEIF(DYNAMIC_OPENSCENEGRAPH)
+        # A shared plugin has to sit in a directory literally named
+        # osgPlugins-<version> or the Registry cannot find it:
+        # Registry::createLibraryNameForExtension() unconditionally prepends that
+        # directory to the filename it dlopens (src/osgDB/Registry.cpp:786).
+        #
+        # Static builds are deliberately left alone: nothing searches for an archive
+        # at runtime, and this macro also moves ARCHIVE_OUTPUT_DIRECTORY, which would
+        # relocate every plugin archive for no benefit.
+        SET_OUTPUT_DIR_PROPERTY_260(${TARGET_TARGETNAME} "${OSG_PLUGINS}")
     ENDIF(MSVC)
 
     SET_TARGET_PROPERTIES(${TARGET_TARGETNAME} PROPERTIES PROJECT_LABEL "${TARGET_LABEL}")
@@ -349,28 +340,164 @@ MACRO(SETUP_PLUGIN PLUGIN_NAME)
     ENDIF()
     SETUP_LINK_LIBRARIES()
 
-#the installation path are differentiated for win32 that install in bin versus other architecture that install in ${OSG_INSTALL_LIBDIR}/${OSG_PLUGINS}
+    # A static plugin is an ordinary archive, so it goes in the export set and
+    # consumers can link it by name. In a shared build a plugin is a MODULE --
+    # opened at runtime by osgDB, never linked against -- and CMake will not
+    # accept a MODULE library in an export set.
+    IF(DYNAMIC_OPENSCENEGRAPH)
+        SET(PLUGIN_EXPORT_ARGS)
+    ELSE()
+        SET(PLUGIN_EXPORT_ARGS EXPORT OpenSceneGraphTargets)
+        OSG_PROMOTE_PACKAGE_DEPENDENCIES()
+    ENDIF()
+
+# the installation path are differentiated for win32 that install in bin versus
+# other architecture that install in ${OSG_INSTALL_LIBDIR}/${OSG_PLUGINS}
     IF(WIN32)
         INSTALL(TARGETS ${TARGET_TARGETNAME}
+            ${PLUGIN_EXPORT_ARGS}
             RUNTIME DESTINATION bin COMPONENT ${PACKAGE_COMPONENT}
             ARCHIVE DESTINATION lib/${OSG_PLUGINS} COMPONENT libopenscenegraph-dev
             LIBRARY DESTINATION bin/${OSG_PLUGINS} COMPONENT ${PACKAGE_COMPONENT})
         IF(MSVC AND DYNAMIC_OPENSCENEGRAPH)
-	    IF( ${CMAKE_GENERATOR} STREQUAL "Ninja" )
-		INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/${TARGET_TARGETNAME}${CMAKE_RELWITHDEBINFO_POSTFIX}.pdb DESTINATION bin/${OSG_PLUGINS} COMPONENT ${PACKAGE_COMPONENT} CONFIGURATIONS RelWithDebInfo)
-		INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/${TARGET_TARGETNAME}${CMAKE_DEBUG_POSTFIX}.pdb DESTINATION bin/${OSG_PLUGINS} COMPONENT ${PACKAGE_COMPONENT} CONFIGURATIONS Debug)
-	    ELSE( ${CMAKE_GENERATOR} STREQUAL "Ninja" )
-		INSTALL(FILES ${OUTPUT_BINDIR}/${OSG_PLUGINS}/${TARGET_TARGETNAME}${CMAKE_RELWITHDEBINFO_POSTFIX}.pdb DESTINATION bin/${OSG_PLUGINS} COMPONENT ${PACKAGE_COMPONENT} CONFIGURATIONS RelWithDebInfo)
-		INSTALL(FILES ${OUTPUT_BINDIR}/${OSG_PLUGINS}/${TARGET_TARGETNAME}${CMAKE_DEBUG_POSTFIX}.pdb DESTINATION bin/${OSG_PLUGINS} COMPONENT ${PACKAGE_COMPONENT} CONFIGURATIONS Debug)
-	    ENDIF( ${CMAKE_GENERATOR} STREQUAL "Ninja" )
+            INSTALL(FILES $<TARGET_PDB_FILE:${TARGET_TARGETNAME}> DESTINATION bin/${OSG_PLUGINS} COMPONENT ${PACKAGE_COMPONENT} OPTIONAL)
         ENDIF(MSVC AND DYNAMIC_OPENSCENEGRAPH)
     ELSE(WIN32)
         INSTALL(TARGETS ${TARGET_TARGETNAME}
+            ${PLUGIN_EXPORT_ARGS}
             RUNTIME DESTINATION bin COMPONENT ${PACKAGE_COMPONENT}
             ARCHIVE DESTINATION ${OSG_INSTALL_LIBDIR}/${OSG_PLUGINS} COMPONENT libopenscenegraph-dev
             LIBRARY DESTINATION ${OSG_INSTALL_LIBDIR}/${OSG_PLUGINS} COMPONENT ${PACKAGE_COMPONENT})
     ENDIF(WIN32)
 ENDMACRO(SETUP_PLUGIN)
+
+
+#################################################################################################################
+# Links every static plugin archive into an executable with whole-archive.
+#
+# A static build has no plugin files to discover at runtime; the Registry is
+# populated by static initializers instead, and those only run if the linker keeps
+# the archive members that define them. Ordinary static linking pulls only the
+# members it needs to resolve a symbol, so without help every plugin archive is
+# discarded and the executable can read no file format at all.
+#
+# The usual remedy is a USE_OSGPLUGIN(name) per plugin in the source, but that name
+# is the one passed to REGISTER_OSGPLUGIN, which differs from the CMake target name
+# for eleven plugins -- .osgt/.osgb/.osgx are registered as "osg2" but built as
+# osgdb_osg, .gz as "GZ", pov as "Povray", and so on. A hand-written list across
+# every plugin is a standing invitation to link the right archive under the wrong
+# name, which links cleanly and then silently fails at runtime.
+#
+# Whole-archive linking sidesteps the mapping entirely: every member of each archive
+# is kept, so the static proxies that REGISTER_OSGPLUGIN and REGISTER_OBJECT_WRAPPER
+# create run their constructors and register themselves. It needs only CMake target
+# names, which the build already knows, and it picks up the serializer and
+# deprecated-wrapper libraries for free -- their LibraryWrapper.cpp files exist only
+# to anchor archive members that whole-archive keeps anyway.
+# $<LINK_LIBRARY:WHOLE_ARCHIVE,...> maps to -force_load on Apple and /WHOLEARCHIVE:
+# on MSVC.
+#
+# The target list comes from SETUP_PLUGIN above, which appends every static plugin
+# to a global property. That property is empty in a shared build, where plugins are
+# MODULEs found at runtime, so this is inert there.
+#
+# Examples deliberately do not call this. They are built as a compile-and-link check
+# on the static configuration, and plugins contribute to neither -- they matter only
+# at runtime, for loading model and image files. Force-loading 88 archives into each
+# of 162 examples would cost roughly 14 GB against 1.8 GB. osgconv and the
+# tests/packageconsumer check already prove the plugin registration path.
+#################################################################################################################
+
+# Keeping every member of every archive exposes duplicate definitions that ordinary
+# static linking never surfaces, because ordinarily the linker pulls only the members
+# it needs and stops at the first definition of a symbol. These three pairs each
+# define the same symbol twice:
+#
+#   osgdb_serializers_osgui / osgdb_serializers_osgga
+#       Both register their Widget serializer as REGISTER_OBJECT_WRAPPER(Widget, ...),
+#       which yields wrapper_serializer_Widget in both. The serialized class name
+#       comes from the macro's CLASS argument (osgGA::Widget vs osgUI::Widget), so
+#       only the C symbol collides.
+#   osgdb_deprecated_osgvolume / osgdb_deprecated_osgterrain
+#       Nine symbols. Both libraries have Layer, Locator and ImageLayer classes and
+#       their dotosg wrappers are named after the class, unqualified.
+#   osgdb_deprecated_osganimation / osgdb_deprecated_osg
+#       readMatrix and writeMatrix. deprecated-dotosg/osgAnimation/Matrix.cpp is a
+#       byte-for-byte copy of deprecated-dotosg/osg/Matrix.cpp.
+SET(OSG_WHOLE_ARCHIVE_EXCLUDE
+    osgdb_serializers_osgui
+    osgdb_deprecated_osgvolume
+    osgdb_deprecated_osganimation
+)
+
+# Linking every plugin means inheriting every plugin's third-party
+# dependencies, so one badly built dependency breaks the whole executable rather
+# than just its own format:
+SET(OSG_WHOLE_ARCHIVE_EXCLUDE_PLUGINS "" CACHE STRING
+    "Plugin targets to leave out of the whole-archive link of osgconv, osgviewer, osgarchive and osgfilecache, semicolon separated (e.g. osgdb_dicom). For working around a third-party dependency that cannot be linked on this machine; the plugin stays available to anything that links it directly.")
+
+FUNCTION(OSG_LINK_ALL_STATIC_PLUGINS TARGET_TARGETNAME)
+    IF(DYNAMIC_OPENSCENEGRAPH)
+        RETURN()
+    ENDIF()
+
+    GET_PROPERTY(plugin_targets GLOBAL PROPERTY OSG_STATIC_PLUGIN_TARGETS)
+
+    IF(NOT plugin_targets)
+        MESSAGE(WARNING
+            "${TARGET_TARGETNAME}: no static plugin targets were recorded, so it will not "
+            "be able to read or write any file format. Is BUILD_OSG_PLUGINS off?")
+        RETURN()
+    ENDIF()
+
+    LIST(REMOVE_DUPLICATES plugin_targets)
+    LIST(SORT plugin_targets)
+    SET(whole_archive ${plugin_targets})
+
+    SET(link_normally "")
+    FOREACH(excluded IN LISTS OSG_WHOLE_ARCHIVE_EXCLUDE)
+        IF(excluded IN_LIST plugin_targets)
+            LIST(APPEND link_normally ${excluded})
+        ELSE()
+            MESSAGE(WARNING
+                "${TARGET_TARGETNAME}: ${excluded} is in OSG_WHOLE_ARCHIVE_EXCLUDE but was "
+                "not built, so the exclusion does nothing here.")
+        ENDIF()
+        LIST(REMOVE_ITEM whole_archive ${excluded})
+    ENDFOREACH()
+
+    FOREACH(excluded IN LISTS OSG_WHOLE_ARCHIVE_EXCLUDE_PLUGINS)
+        IF(NOT excluded IN_LIST plugin_targets)
+            MESSAGE(WARNING
+                "${TARGET_TARGETNAME}: OSG_WHOLE_ARCHIVE_EXCLUDE_PLUGINS names ${excluded}, "
+                "which is not a plugin target in this build. Check the spelling -- the names "
+                "are CMake targets such as osgdb_dicom.")
+        ELSE()
+            MESSAGE(STATUS
+                "${TARGET_TARGETNAME}: excluding ${excluded} by request. That format will not "
+                "be available; anything linking osg3::${excluded} directly is unaffected and "
+                "will hit the same problem.")
+        ENDIF()
+        LIST(REMOVE_ITEM whole_archive ${excluded})
+    ENDFOREACH()
+
+    LIST(LENGTH whole_archive whole_archive_count)
+    LIST(LENGTH plugin_targets plugin_count)
+    STRING(REPLACE ";" "," whole_archive_list "${whole_archive}")
+
+    TARGET_LINK_LIBRARIES(${TARGET_TARGETNAME}
+        "$<LINK_LIBRARY:WHOLE_ARCHIVE,${whole_archive_list}>"
+        ${link_normally}
+    )
+
+    MESSAGE(STATUS
+        "${TARGET_TARGETNAME}: ${whole_archive_count} of ${plugin_count} static plugins "
+        "linked with whole-archive")
+ENDFUNCTION(OSG_LINK_ALL_STATIC_PLUGINS)
+
+# Compiled into every windowed executable in a static build. See the file itself for
+# why this is a source file rather than a USE_GRAPHICSWINDOW() call per target.
+SET(OSG_STATIC_GRAPHICSWINDOW_SRC "${CMAKE_CURRENT_LIST_DIR}/OsgStaticGraphicsWindow.cpp")
 
 
 #################################################################################################################
@@ -389,6 +516,15 @@ MACRO(SETUP_EXE IS_COMMANDLINE_APP)
     IF(NOT TARGET_LABEL)
             SET(TARGET_LABEL "${TARGET_DEFAULT_LABEL_PREFIX} ${TARGET_NAME}")
     ENDIF(NOT TARGET_LABEL)
+
+    # A static build has no windowing system unless something references the
+    # osgViewer archive member that registers one, so compile in the linker anchor
+    # that does it. Commandline targets are excluded because they never open a
+    # window, and the anchor would drag the platform window implementation into
+    # osgversion for nothing. See CMakeModules/OsgStaticGraphicsWindow.cpp.
+    IF(NOT DYNAMIC_OPENSCENEGRAPH AND NOT ${IS_COMMANDLINE_APP})
+        SET(TARGET_SRC ${TARGET_SRC} ${OSG_STATIC_GRAPHICSWINDOW_SRC})
+    ENDIF()
 
     IF(${IS_COMMANDLINE_APP})
 
@@ -470,8 +606,7 @@ MACRO(SETUP_APPLICATION APPLICATION_NAME)
         ELSE(APPLE)
             INSTALL(TARGETS ${TARGET_TARGETNAME} RUNTIME DESTINATION bin COMPONENT openscenegraph  )
             IF(MSVC)
-		INSTALL(FILES ${OUTPUT_BINDIR}/${TARGET_NAME}${CMAKE_RELWITHDEBINFO_POSTFIX}.pdb DESTINATION bin COMPONENT openscenegraph CONFIGURATIONS RelWithDebInfo)
-		INSTALL(FILES ${OUTPUT_BINDIR}/${TARGET_NAME}${CMAKE_DEBUG_POSTFIX}.pdb DESTINATION bin COMPONENT openscenegraph CONFIGURATIONS Debug)
+                INSTALL(FILES $<TARGET_PDB_FILE:${TARGET_TARGETNAME}> DESTINATION bin COMPONENT openscenegraph OPTIONAL)
             ENDIF(MSVC)
         ENDIF(APPLE)
 
@@ -503,8 +638,7 @@ MACRO(SETUP_EXAMPLE EXAMPLE_NAME)
         ELSE(APPLE)
             INSTALL(TARGETS ${TARGET_TARGETNAME} RUNTIME DESTINATION share/OpenSceneGraph/bin COMPONENT openscenegraph-examples )
             IF(MSVC)
-		INSTALL(FILES ${OUTPUT_BINDIR}/${TARGET_NAME}${CMAKE_RELWITHDEBINFO_POSTFIX}.pdb DESTINATION share/OpenSceneGraph/bin COMPONENT openscenegraph-examples CONFIGURATIONS RelWithDebInfo)
-		INSTALL(FILES ${OUTPUT_BINDIR}/${TARGET_NAME}${CMAKE_DEBUG_POSTFIX}.pdb DESTINATION share/OpenSceneGraph/bin COMPONENT openscenegraph-examples CONFIGURATIONS Debug)
+                INSTALL(FILES $<TARGET_PDB_FILE:${TARGET_TARGETNAME}> DESTINATION share/OpenSceneGraph/bin COMPONENT openscenegraph-examples OPTIONAL)
             ENDIF(MSVC)
         ENDIF(APPLE)
 
@@ -517,15 +651,14 @@ MACRO(SETUP_COMMANDLINE_EXAMPLE EXAMPLE_NAME)
 
 ENDMACRO(SETUP_COMMANDLINE_EXAMPLE)
 
+# warning flags that third-party headers trip over (gdal, exr, fbx, pdf, gstreamer).
+MACRO(REMOVE_CXX_FLAG flag)
+  STRING(REPLACE "${flag}" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+ENDMACRO()
+
 # Takes two optional arguments -- osg prefix and osg version
 MACRO(HANDLE_MSVC_DLL)
-        #this is a hack... the build place is set to lib/<debug or release> by LIBARARY_OUTPUT_PATH equal to OUTPUT_LIBDIR
-        #the .lib will be crated in ../ so going straight in lib by the IMPORT_PREFIX property
-        #because we want dll placed in OUTPUT_BINDIR ie the bin folder sibling of lib, we can use ../../bin to go there,
-        #it is hardcoded, we should compute OUTPUT_BINDIR position relative to OUTPUT_LIBDIR ... to be implemented
-        #changing bin to something else breaks this hack
-        #the dll are versioned by prefixing the name with osg${OPENSCENEGRAPH_SOVERSION}-
-
+        # The dll are versioned by prefixing the name with osg${OPENSCENEGRAPH_SOVERSION}-.
         # LIB_PREFIX: use "osg" by default, else whatever we've been given.
         IF(${ARGC} GREATER 0)
                 SET(LIB_PREFIX ${ARGV0})
@@ -541,45 +674,5 @@ MACRO(HANDLE_MSVC_DLL)
         ENDIF(${ARGC} GREATER 1)
 
         SET_OUTPUT_DIR_PROPERTY_260(${LIB_NAME} "")        # Ensure the /Debug /Release are removed
-        IF(NOT MSVC_IDE)
-            IF (NOT CMAKE24)
-                BUILDER_VERSION_GREATER(2 8 0)
-                IF(NOT VALID_BUILDER_VERSION)
-                    # If CMake < 2.8.1
-                    SET_TARGET_PROPERTIES(${LIB_NAME} PROPERTIES PREFIX "../bin/${LIB_PREFIX}${LIB_SOVERSION}-" IMPORT_PREFIX "../")
-                ELSE(NOT VALID_BUILDER_VERSION)
-                    SET_TARGET_PROPERTIES(${LIB_NAME} PROPERTIES PREFIX "${LIB_PREFIX}${LIB_SOVERSION}-")
-                ENDIF(NOT VALID_BUILDER_VERSION)
-            ELSE (NOT CMAKE24)
-                SET_TARGET_PROPERTIES(${LIB_NAME} PROPERTIES PREFIX "../bin/${LIB_PREFIX}${LIB_SOVERSION}-" IMPORT_PREFIX "../")
-                SET(NEW_LIB_NAME "${OUTPUT_BINDIR}/${LIB_PREFIX}${LIB_SOVERSION}-${LIB_NAME}")
-                ADD_CUSTOM_COMMAND(
-                    TARGET ${LIB_NAME}
-                    POST_BUILD
-                    COMMAND ${CMAKE_COMMAND} -E copy "${NEW_LIB_NAME}.lib"  "${OUTPUT_LIBDIR}/${LIB_NAME}.lib"
-                    COMMAND ${CMAKE_COMMAND} -E copy "${NEW_LIB_NAME}.exp"  "${OUTPUT_LIBDIR}/${LIB_NAME}.exp"
-                    COMMAND ${CMAKE_COMMAND} -E remove "${NEW_LIB_NAME}.lib"
-                    COMMAND ${CMAKE_COMMAND} -E remove "${NEW_LIB_NAME}.exp"
-                    )
-            ENDIF (NOT CMAKE24)
-        ELSE(NOT MSVC_IDE)
-            IF (NOT CMAKE24)
-                BUILDER_VERSION_GREATER(2 8 0)
-                IF(NOT VALID_BUILDER_VERSION)
-                    # If CMake < 2.8.1
-                    SET_TARGET_PROPERTIES(${LIB_NAME} PROPERTIES PREFIX "../../bin/${LIB_PREFIX}${LIB_SOVERSION}-" IMPORT_PREFIX "../")
-                ELSE(NOT VALID_BUILDER_VERSION)
-                    SET_TARGET_PROPERTIES(${LIB_NAME} PROPERTIES PREFIX "${LIB_PREFIX}${LIB_SOVERSION}-")
-                ENDIF(NOT VALID_BUILDER_VERSION)
-            ELSE (NOT CMAKE24)
-                SET_TARGET_PROPERTIES(${LIB_NAME} PROPERTIES PREFIX "../../bin/${LIB_PREFIX}${LIB_SOVERSION}-" IMPORT_PREFIX "../")
-            ENDIF (NOT CMAKE24)
-        ENDIF(NOT MSVC_IDE)
-
-#     SET_TARGET_PROPERTIES(${LIB_NAME} PROPERTIES PREFIX "../../bin/osg${OPENSCENEGRAPH_SOVERSION}-")
-#     SET_TARGET_PROPERTIES(${LIB_NAME} PROPERTIES IMPORT_PREFIX "../")
+        SET_TARGET_PROPERTIES(${LIB_NAME} PROPERTIES PREFIX "${LIB_PREFIX}${LIB_SOVERSION}-")
 ENDMACRO(HANDLE_MSVC_DLL)
-
-MACRO(REMOVE_CXX_FLAG flag)
-  STRING(REPLACE "${flag}" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-ENDMACRO()

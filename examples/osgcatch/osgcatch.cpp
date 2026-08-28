@@ -349,7 +349,7 @@ class CatchableObject  : public osg::Referenced
         */
         inline void setToGravity(float scale = 1.0f) { _acceleration.set(0, 0, -9.81f*scale); }
 
-        /// Set the fluid parameters as for air (20°C temperature).
+        /// Set the fluid parameters as for air (20Â°C temperature).
         inline void setFluidToAir()
         {
             setToGravity(1.0f);
@@ -357,7 +357,7 @@ class CatchableObject  : public osg::Referenced
             setFluidViscosity(1.8e-5f);
         }
 
-        /// Set the fluid parameters as for pure water (20°C temperature).
+        /// Set the fluid parameters as for pure water (20Â°C temperature).
         inline void setFluidToWater()
         {
             setToGravity(1.0f);

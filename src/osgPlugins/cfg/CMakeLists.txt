@@ -18,10 +18,6 @@ SET(TARGET_H
 
 
 
-# lex/yacc generated files use register that causes warnings with CLang under OSX so disable this warnings.
-IF(${CMAKE_CXX_COMPILER_ID} STREQUAL "Clang")
-   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-register")
-ENDIF()
 
 #
 # Android NDK r6, r6b and r7 ship with a broken gcc (armeabi)

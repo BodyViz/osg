@@ -7,8 +7,8 @@ ENDIF()
 SET(TARGET_SRC
     OSXAVFoundationVideo.mm
     OSXAVFoundationVideo.h
-    ../QTKit/VideoFrameDispatcher.h
-    ../QTKit/VideoFrameDispatcher.cpp
+    VideoFrameDispatcher.h
+    VideoFrameDispatcher.cpp
     OSXAVFoundationCoreVideoTexture.h
     OSXAVFoundationCoreVideoTexture.cpp
     ReaderWriterAVFoundation.cpp
